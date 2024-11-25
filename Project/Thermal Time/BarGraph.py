@@ -60,5 +60,3 @@ ax.legend(by_label.values(), by_label.keys(), title="Stages")
 # Show the plot
 plt.tight_layout()
 plt.show()
-
-#test
