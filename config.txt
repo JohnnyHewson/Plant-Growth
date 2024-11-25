@@ -1,0 +1,30 @@
+Phenological Development
+Seeding,1,148
+Emergence,1,284
+Double Ridge,1,600
+Anthesis,9,350
+Maturity,9,0
+
+PAR Interception
+extinction_interception,0.44
+leaf_transmission_coefficient,0.10
+
+Photosynthesis
+photosynthetic_efficiency,0.009
+ambient_co2_concentration,600
+boundary_layer_resistance,30
+mesophyll_resistance,400
+activation_energy_of_the_electron_transport_system,14200
+denaturation_energy_of_the_electron_transport_system,47000
+entropy_change_on_denaturation_of_the_electron_transport_system,153.4
+
+Respiration
+growth_respiration_coefficient,0.34
+maintenance_respiration_coefficient_emerge_to_anthesis,0.002
+maintenance_respiration_coefficient_anthesis_to_maturity,0.001
+
+Dry-matter Partitioning
+stage range, proportions of current assimilate{roots, leaves, stems, ears}
+emergence_to_double_ridge,0.35,0.55,0.10,0
+double_ridge_to_beginning_ear_growth,0.20,0.40,0.40,0
+beginning_ear_growth_to_anthesis,0.10,0.30,0.30,0.30
