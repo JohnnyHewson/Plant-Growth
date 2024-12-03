@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 
 def read_data(file_path):
     data = pd.read_csv(file_path, header=None, names=['date', 'value'])
-    data['date'] = pd.to_datetime(data['date'], format='%Y/%m/%d')
+    data['date'] = pd.to_datetime(data['date'], format='%d/%m/%Y')
     data = data[data['value'] >= 0].reset_index(drop=True)
     return data
 
@@ -41,9 +41,7 @@ def process_files(input_files):
         
         full_dates = generate_full_date_range(start_date, end_date)
         interpolated_data = interpolate_values(year_data, full_dates)
-        
         interpolated_data['Growing Year'] = f"{start_year}-{start_year + 1}"
-        
         cumulative_data = pd.concat([cumulative_data, interpolated_data], ignore_index=True)
 
     cumulative_data.rename(columns={'date': 'Date', 'value': f'Cumulative {variable_name}'}, inplace=True)

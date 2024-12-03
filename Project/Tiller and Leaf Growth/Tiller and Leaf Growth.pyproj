@@ -2,15 +2,15 @@
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <SchemaVersion>2.0</SchemaVersion>
-    <ProjectGuid>d3bc5189-deeb-4494-8ef8-fd580563e059</ProjectGuid>
+    <ProjectGuid>99d5cadd-a299-4fcb-ac62-b5715e65b1c3</ProjectGuid>
     <ProjectHome>.</ProjectHome>
-    <StartupFile>BarGraph.py</StartupFile>
+    <StartupFile>Tiller_and_Leaf_Growth.py</StartupFile>
     <SearchPath>
     </SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
     <OutputPath>.</OutputPath>
-    <Name>Thermal Time</Name>
-    <RootNamespace>Thermal Time</RootNamespace>
+    <Name>Tiller and Leaf Growth</Name>
+    <RootNamespace>Tiller and Leaf Growth</RootNamespace>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
     <DebugSymbols>true</DebugSymbols>
@@ -21,13 +21,7 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="BarGraph.py" />
-    <Compile Include="RSME Graph.py" />
-    <Compile Include="True Thermal Time.py" />
-    <Compile Include="Photovernalized Affected Thermal Time.py" />
-    <Compile Include="Photoperiod Affected Thermal Time.py" />
-    <Compile Include="Thermal Time.py" />
-    <Compile Include="TtGraphing.py" />
+    <Compile Include="Tiller_and_Leaf_Growth.py" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
   <!-- Uncomment the CoreCompile target to enable the Build command in

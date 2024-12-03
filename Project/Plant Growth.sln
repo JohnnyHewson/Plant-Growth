@@ -9,6 +9,8 @@ Project("{888888A0-9F3D-457C-B088-3A5042F75D52}") = "Data Interpolator", "Data I
 EndProject
 Project("{888888A0-9F3D-457C-B088-3A5042F75D52}") = "Thermal Time", "Thermal Time\Thermal Time.pyproj", "{D3BC5189-DEEB-4494-8EF8-FD580563E059}"
 EndProject
+Project("{888888A0-9F3D-457C-B088-3A5042F75D52}") = "Tiller and Leaf Growth", "Tiller and Leaf Growth\Tiller and Leaf Growth.pyproj", "{99D5CADD-A299-4FCB-AC62-B5715E65B1C3}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +23,8 @@ Global
 		{0F0F7CA1-C8E0-4056-8326-0FFFB54410C1}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{D3BC5189-DEEB-4494-8EF8-FD580563E059}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{D3BC5189-DEEB-4494-8EF8-FD580563E059}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{99D5CADD-A299-4FCB-AC62-B5715E65B1C3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{99D5CADD-A299-4FCB-AC62-B5715E65B1C3}.Release|Any CPU.ActiveCfg = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

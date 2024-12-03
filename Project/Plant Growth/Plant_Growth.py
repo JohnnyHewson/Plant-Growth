@@ -112,7 +112,7 @@ Q_p_z = ((Q_p*k)/(1-m))*exp(-k*LAI_z) #W/m^2
 ###Phtosynthesis
 r_a = int(input("crop boundary layer resistance: "))
 r_m = int(input("mesophyll resistance: "))
-D = int(input("vapour pressure deficit (kPa): "))
+D = int(input("vapour pressure deficit (kPa): ")) #this model uses D = 0
 r_s = 1.56*75*(1+100/Q_p_z)*(1-0.3*D)
 r_p = r_a + r_s + r_m
 
