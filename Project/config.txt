@@ -1,9 +1,13 @@
+Latitude,51.81
 Phenological Development
 Seeding,1,148
 Emergence,1,284
 Double Ridge,1,600
 Anthesis,9,350
 Maturity,9,0
+
+Tiller Growth
+shoot_production_rate,2.63
 
 PAR Interception
 extinction_interception,0.44

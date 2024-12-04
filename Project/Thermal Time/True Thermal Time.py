@@ -19,17 +19,20 @@ thermal_data = max_temp_data.merge(min_temp_data, on='Date', how='outer')
 stages = []
 configdir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'config.txt'))
 with open(configdir, 'r') as config_file:
-    iterlines = iter(config_file)
-    next(iterlines)
-    for line in iterlines:
-        stage_name, T_base, degree_days = line.strip().split(',')
-        stages.append({
-            'Stage': stage_name,
-            'T_Base': float(T_base),
-            'Degree_Days': float(degree_days)
-        })
-        if stage_name == "Maturity":
-            break
+    for line in config_file:
+        if line.__contains__(','):
+            if line[:line.index(',')] in ['Seeding',
+                                          'Emergence',
+                                          'Double Ridge',
+                                          'Anthesis',
+                                          'Maturity']:
+                stage_name, T_base, degree_days = line.strip().split(',')
+                stages.append({
+                    'Stage': stage_name,
+                    'T_Base': float(T_base),
+                    'Degree_Days': float(degree_days)
+                    })
+
 
 # Constants
 P_opt = 20  # Optimal photoperiod-effective hours
