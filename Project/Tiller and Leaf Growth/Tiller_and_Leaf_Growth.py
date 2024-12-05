@@ -1,3 +1,4 @@
+from logging import root
 import numpy as np
 import pandas as pd
 import datetime
@@ -144,4 +145,16 @@ for file in os.listdir(path):
     
     print(LAI_z)
     ### Root Growth Submodel ###
-
+    root_growth = pd.DataFrame({'Layer':[], 'Length':[], 'Weight':[]})
+    seminal_weight = 1.5 * (10**-4)
+    lateral_weight = 4 * (10**-5)
+    for index,row in plant_data.iterrows():
+        TR = min(0.2 + 0.12 * plant_data['Mean_Temp'],0)
+        if 'Seminal' in root_growth['Layer'].values(-1):
+            if index > 0:
+                length = TR + root_growth['Length'].values(-1)
+            else: 
+                length = TR
+            root_growth.loc[index] = ['Seminal',length,seminal_weight*length]
+        else:
+            root_growth.loc[index] 
