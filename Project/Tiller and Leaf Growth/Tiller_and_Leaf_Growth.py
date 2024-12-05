@@ -1,5 +1,4 @@
 import numpy as np
-import matplotlib.pyplot as plt
 import pandas as pd
 import datetime
 import os
@@ -38,16 +37,11 @@ def calc_RoCoDLatE(latitude, date):
         return numerator / denominator * declination_rate
 
 for file in os.listdir(path):
-    plant_data = pd.read_csv(f'Plant Data\\{file}', usecols=['Date',
-                                                             'Stage',
-                                                             'Daily Degree Days',
-                                                             'Total Degree Days'])
+    plant_data = pd.read_csv(f'Plant Data\\{file}')
     plant_data['Date'] = pd.to_datetime(plant_data['Date'], dayfirst=True)
     plant_data = plant_data.merge(temp_data, on='Date', how='outer')
     plant_data = plant_data.dropna().reset_index().drop(columns='index')
     number_of_growths = pd.DataFrame({'#Tillers':[0],'#Leaves':[0]})
-    
-    plant_results = []
 
     ### Tiller and Leaf Growth Submodel ###
     rate_of_change_of_daylength_at_emergence = 0
@@ -73,7 +67,7 @@ for file in os.listdir(path):
             if number_of_growths['#Leaves'].values[-1] < 3:
                 if number_of_growths['#Leaves'].values[-1] == 0:
                     successive_leaf_thermal_time = row['Total Degree Days']
-                    new_leaves = trunc(rate_of_leaf_appearance_per_degree_day * row['Total Degree Days'])
+                    new_leaves = rate_of_leaf_appearance_per_degree_day * row['Total Degree Days']
                     number_of_growths.loc[index] = [0, new_leaves]
                 else:
                     if (row['Total Degree Days'] - successive_leaf_thermal_time) >= phylochron_interval:
@@ -86,28 +80,22 @@ for file in os.listdir(path):
                     if (row['Total Degree Days'] - successive_leaf_thermal_time) >= phylochron_interval:
                         successive_leaf_thermal_time = row['Total Degree Days']
                         new_leaves += 1
-                    number_of_growths.loc[index] = [trunc(new_tillers), new_leaves]
+                    number_of_growths.loc[index] = [new_tillers, new_leaves]
                 else:
                     if (row['Total Degree Days'] - successive_leaf_thermal_time) >= phylochron_interval:
                         successive_leaf_thermal_time = row['Total Degree Days']
                         new_leaves += 1
                     if max_tillers == 0:
-                        max_tillers = number_of_growths['#Tillers'].values[-1]
-                        N_n = pd.DataFrame({'N_n':[i for i in range(1,max_tillers+1)],'Survival Chance':1})
+                        max_tillers = trunc(number_of_growths['#Tillers'].values[-1])+1
+                        N_n = pd.DataFrame({'N_n':[i for i in range(1,max_tillers+1)],
+                                            'Survival Chance':[1*(number_of_growths['#Tillers'].values[-1] - trunc(number_of_growths['#Tillers'].values[-1])) if i == trunc(number_of_growths['#Tillers'].values[-1])+1 else 1 for i in range(1,max_tillers+1)]})
                         chance = list(int(i) for i in list('1'*max_tillers))
                     for index2,row2 in N_n.iterrows():
                         chance[index2] *= (1 / (1 + (((min(row['Total Degree Days'],600)/600)/((A/row2['N_n'])**alpha)))**beta))
-                    number_of_growths.loc[index] = [trunc(new_tillers), new_leaves]             
-        # plant_results.append({
-        #     'Date': row['Date'],
-        #     'Stage': row['Stage'],
-        #     'Stage Length': row['Stage Length'],
-        #     'Daily Degree Days': row['Daily Degree Days'],
-        #     'Stage Sum Degree Days': row['Stage Sum Degree Days'],
-        #     'Total Degree Days': row['Total Degree Days'],
-        #     'Number of Leaves': number_of_growths['#Leaves'].values[-1],
-        #     'Number of Tillers': number_of_growths['#Tillers'].values[-1],
-        #     })
+                    number_of_growths.loc[index] = [new_tillers, new_leaves]             
+
+    N_n = pd.concat([N_n, pd.DataFrame({'Multiplier':chance})], axis=1)
+    plant_data = pd.concat([plant_data, number_of_growths], axis=1)
 
     # Leaf data from the paper (Table 1)
     leaf_data = [
@@ -124,32 +112,36 @@ for file in os.listdir(path):
         {"lamina_length": 395, "lamina_width": 15, "sheath_length": 145, "leaf_area": 3988},  # Leaf 11
         {"lamina_length": 445, "lamina_width": 15, "sheath_length": 155, "leaf_area": 4560},  # Leaf 12
     ]
-    form_factor = 0.87  # Adjust for non-rectangular leaves
-    sheath_diameter = 0.05
-    projected_area_factor = 1e-6  # Convert mm^2 to m^2
+    projected_area_factor = 1e-6  # Convert from mm^2 to m^2
     
-    LAI_z = {}
+    LAI_z = pd.DataFrame({'Level':[],'LAI':[]})
     LAI = 0
     number_of_levels = 0
     if number_of_growths['#Leaves'].values[-1] >= 12:
             number_of_levels = 5
     else:
-        for i in range(number_of_growths['#Leaves'].values[-1]):
+        for i in range(trunc(number_of_growths['#Leaves'].values[-1])+1):
             if leaf_data[i]['sheath_length'] > leaf_data[i-1]['sheath_length']:
                 number_of_levels += 1
     level = 0
-    for i in range(number_of_growths['#Leaves'].values[-1]):
-        if i ==0:
-            LAI += leaf_data[0]['leaf_area']
-        else:
-            LAI += leaf_data[i]['leaf_area']
-            if leaf_data[i]['sheath_length'] > leaf_data[i-1]['sheath_length']:
-                level += 1
-            LAI_z.update({f'Level {number_of_levels-level}':LAI})
-    
-    for value in LAI_z:
-        LAI_z[f'{value}'] *= projected_area_factor
+    i=0
+    while number_of_levels-level>=0:
+        LAI += leaf_data[i]['leaf_area']
+        if trunc(number_of_growths['#Leaves'].values[-1] - i) == 0:
+            print(number_of_growths['#Leaves'].values[-1], i)
+        if i > 0:
+            if i < 11:
+                LAI += leaf_data[i]['leaf_area']
+                if leaf_data[i]['sheath_length'] > leaf_data[i-1]['sheath_length']:
+                    level += 1
+            else:
+                LAI += leaf_data[11]['leaf_area']
+            LAI_z.loc[number_of_levels-level] = [f'Level {number_of_levels-level}',LAI]
+        i+=1
 
+    # for value in LAI_z:
+    #     LAI_z[f'{value}'] *= projected_area_factor
     
+    print(LAI_z)
     ### Root Growth Submodel ###
 
