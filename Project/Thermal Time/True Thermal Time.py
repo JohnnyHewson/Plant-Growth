@@ -82,6 +82,7 @@ for index, row in stage_timings.iterrows():
 
     # Initialize cumulative degree days and stage tracking
     cumulative_PVTt = 0
+    sum_PVTt = 0
     VDD = 0
     current_stage_index = 0
     current_stage = stages[current_stage_index]
@@ -147,14 +148,15 @@ for index, row in stage_timings.iterrows():
         PVTt = thermal_time * FP * FV
         cumulative_PVTt += PVTt
         stage_days += 1
-
+        sum_PVTt += PVTt
         # Store the daily results
         plant_results.append({
             'Date': date,
             'Stage': current_stage['Stage'],
             'Stage Length': stage_days,
             'Daily Degree Days': PVTt,
-            'Stage Sum Degree Days': cumulative_PVTt
+            'Stage Sum Degree Days': cumulative_PVTt,
+            'Total Degree Days': sum_PVTt,
         })
 
         # Check if the current stage threshold is met
