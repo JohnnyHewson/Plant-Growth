@@ -7,7 +7,7 @@ Anthesis,9,350
 Maturity,9,0
 
 Tiller Growth
-shoot_production_rate,2.63
+shoot_production_rate,0.01052
 
 PAR Interception
 extinction_interception,0.44

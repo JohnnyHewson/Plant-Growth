@@ -11,7 +11,7 @@ with open(configdir, 'r') as config_file:
     for line in config_file:
         if line.__contains__(','):
             if line[:line.index(',')] == 'shoot_production_rate':
-                TPr = line.strip().split(',')[1]
+                TPr = float(line.strip().split(',')[1])
             if line[:line.index(',')] == 'Latitude':
                 Lat = float(line.strip().split(',')[1])
 
@@ -38,7 +38,10 @@ def calc_RoCoDLatE(latitude, date):
         return numerator / denominator * declination_rate
 
 for file in os.listdir(path):
-    plant_data = pd.read_csv(f'Plant Data\\{file}', usecols=['Date','Stage','Daily Degree Days'])
+    plant_data = pd.read_csv(f'Plant Data\\{file}', usecols=['Date',
+                                                             'Stage',
+                                                             'Daily Degree Days',
+                                                             'Stage Sum Degree Days'])
     plant_data['Date'] = pd.to_datetime(plant_data['Date'], dayfirst=True)
     plant_data = plant_data.merge(temp_data, on='Date', how='outer')
     plant_data = plant_data.dropna().reset_index().drop(columns='index')
@@ -47,24 +50,37 @@ for file in os.listdir(path):
     rate_of_change_of_daylength_at_emergence = 0
     new_tillers = 0
     new_leaves = 0
+    max_tillers = 0
+    #Constants for Tiller Death Proportion
+    A=825
+    alpha = 1.46
+    beta = 2.24
+
     for index,row in plant_data.iterrows():
         if row['Stage'] == 'Seeding':
             number_of_growths.loc[index] = [trunc(new_tillers), trunc(new_leaves)]
-        elif row['Stage'] in ['Emergence', 'Double Ridge']:
+        elif row['Stage'] in ['Emergence','Double Ridge']:
             if rate_of_change_of_daylength_at_emergence == 0:
                 rate_of_change_of_daylength_at_emergence = calc_RoCoDLatE(Lat, row['Date'])
                 rate_of_leaf_appearance_per_degree_day = 0.025 * rate_of_change_of_daylength_at_emergence + 0.0104
-            if number_of_growths['#Leaves'][index-1] < 3:
-                new_leaves += rate_of_leaf_appearance_per_degree_day * row['Daily Degree Days']
-                number_of_growths.loc[index] = [trunc(new_tillers), trunc(new_leaves)]
+            if number_of_growths['#Leaves'].values[-1] < 3:
+                new_leaves += rate_of_leaf_appearance_per_degree_day * row['Mean_Temp']
+                number_of_growths.loc[index] = [0, trunc(new_leaves)]
             else:
                 if row['Stage'] != 'Double Ridge':
                     new_tillers += TPr * row['Daily Degree Days']
-                    new_leaves += rate_of_leaf_appearance_per_degree_day * row['Daily Degree Days']
+                    new_leaves += rate_of_leaf_appearance_per_degree_day * row['Mean_Temp']
                     number_of_growths.loc[index] = [trunc(new_tillers), trunc(new_leaves)]
-                #else:
+                else:
+                    if max_tillers == 0:
+                        max_tillers = number_of_growths['#Tillers'].values[-1]
+                        N_n = pd.DataFrame({'N_n':[i for i in range(1,max_tillers+1)],'Survival Chance':1})
+                        chance = list(int(i) for i in list('1'*max_tillers))
+                    for index2,row2 in N_n.iterrows():
+                        print(row['Date'],row['Stage'])
+                        chance[index2] *= (1 / (1 + (((min(row['Stage Sum Degree Days'],600)/600)/((A/row2['N_n'])**alpha)))**beta))
 
-                    
+    print(number_of_growths)                
 
 
 

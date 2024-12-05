@@ -154,6 +154,7 @@ for index, row in stage_timings.iterrows():
             'Stage': current_stage['Stage'],
             'Stage Length': stage_days,
             'Daily Degree Days': PVTt,
+            'Stage Sum Degree Days': cumulative_PVTt
         })
 
         # Check if the current stage threshold is met
