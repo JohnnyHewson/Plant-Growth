@@ -10,7 +10,7 @@ Tiller Growth
 shoot_production_rate,0.01052
 
 PAR Interception
-extinction_interception,0.44
+extinction_coefficient,0.44
 leaf_transmission_coefficient,0.10
 
 Photosynthesis
