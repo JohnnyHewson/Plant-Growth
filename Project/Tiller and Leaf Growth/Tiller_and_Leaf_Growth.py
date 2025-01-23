@@ -62,7 +62,7 @@ for file in os.listdir(path):
     A=825
     alpha = 1.46
     beta = 2.24
-
+    print(plant_data)
     for index,row in plant_data.iterrows():
         julian_day = row['Date'].timetuple().tm_yday
         if row['Stage'] == 'Seeding':
@@ -96,12 +96,13 @@ for file in os.listdir(path):
                         successive_leaf_thermal_time = row['Total Degree Days']
                         new_leaves += 1
                     if max_tillers == 0:
+                        number_of_growths['#Tillers'].loc[index-1] = number_of_growths['#Tillers'].values[-1]
                         max_tillers = trunc(number_of_growths['#Tillers'].values[-1])+1
                         N_n = pd.DataFrame({'N_n':[i for i in range(1,max_tillers+1)],
                                             'Survival Chance':[1*(number_of_growths['#Tillers'].values[-1] - trunc(number_of_growths['#Tillers'].values[-1])) if i == trunc(number_of_growths['#Tillers'].values[-1])+1 else 1 for i in range(1,max_tillers+1)]})
                         chance = list(int(i) for i in list('1'*max_tillers))
                     for index2,row2 in N_n.iterrows():
-                        chance[index2] *= (1 / (1 + (((min(row['Total Degree Days'],600)/600)/((A/row2['N_n'])**alpha)))**beta))
+                        chance[index2] *= (1 / (1 + (((row['Stage Sum Degree Days']/400)/((A/row2['N_n'])**alpha)))**beta))
                     print(chance)
                     number_of_growths.loc[index] = [new_tillers, new_leaves]             
 
@@ -184,4 +185,4 @@ for file in os.listdir(path):
         Qp_z = pd.DataFrame({'Qp_0':PAR_data.loc[julian_day-1].values[1:]})
         for i in range(1,number_of_levels+1):
             Qp_z.insert(i,f'Qp_{i}',Qp_z['Qp_0'].apply(func=(lambda x: ((x*k)/(1-m))*exp(-k*LAI_z['LAI'].values[i]))))
-            
+    print(number_of_growths)        
