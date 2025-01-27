@@ -23,6 +23,7 @@ path = os.path.abspath(os.path.join(os.path.dirname(__file__), 'Plant Data'))
 
 temp_data = pd.read_csv('Temp 1978-1979.csv')
 temp_data['Date'] = pd.to_datetime(temp_data['Date'], dayfirst=True)
+temp_data = temp_data.rename(columns={'Min_Temp':'Min Temp','Max_Temp':'Max Temp','Mean_Temp':'Mean Temp'})
 PAR_data = pd.read_csv('Average Hourly PAR.csv')
 
 def calc_RoCoDLatE(latitude, julian_day):
@@ -96,7 +97,7 @@ for file in os.listdir(path):
                         successive_leaf_thermal_time = row['Total Degree Days']
                         new_leaves += 1
                     if max_tillers == 0:
-                        number_of_growths['#Tillers'].loc[index-1] = number_of_growths['#Tillers'].values[-1]
+                        number_of_growths.loc[index-1,'#Tillers'] = number_of_growths['#Tillers'].values[-1]
                         max_tillers = trunc(number_of_growths['#Tillers'].values[-1])+1
                         N_n = pd.DataFrame({'N_n':[i for i in range(1,max_tillers+1)],
                                             'Survival Chance':[1*(number_of_growths['#Tillers'].values[-1] - trunc(number_of_growths['#Tillers'].values[-1])) if i == trunc(number_of_growths['#Tillers'].values[-1])+1 else 1 for i in range(1,max_tillers+1)]})
