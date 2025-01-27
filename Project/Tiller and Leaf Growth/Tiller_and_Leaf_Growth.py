@@ -165,7 +165,7 @@ for file in os.listdir(path):
             i+=1
         LAI_z = LAI_z.sort_index()
         LAI_z['LAI'] = LAI_z['LAI'].multiply(projected_area_factor)
-    
+        print(LAI_z)
         # ### Root Growth Submodel ###
         # root_growth = pd.DataFrame({'Layer':[], 'Length':[], 'Weight':[]})
         # seminal_weight = 1.5 * (10**-4)
