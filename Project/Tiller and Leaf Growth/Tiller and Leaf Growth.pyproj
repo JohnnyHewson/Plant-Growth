@@ -4,7 +4,7 @@
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>99d5cadd-a299-4fcb-ac62-b5715e65b1c3</ProjectGuid>
     <ProjectHome>.</ProjectHome>
-    <StartupFile>Tiller_and_Leaf_Growth.py</StartupFile>
+    <StartupFile>v2.py</StartupFile>
     <SearchPath>
     </SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
@@ -21,6 +21,7 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="v2.py" />
     <Compile Include="Tiller_and_Leaf_Growth.py" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
