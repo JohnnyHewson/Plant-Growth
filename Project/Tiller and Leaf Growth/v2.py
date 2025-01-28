@@ -66,7 +66,8 @@ for file in os.listdir(path):
     plant_data['Date'] = pd.to_datetime(plant_data['Date'], dayfirst=True)
     plant_data = plant_data.merge(temp_data, on='Date', how='outer')
     plant_data = plant_data.dropna().reset_index().drop(columns='index')
-    dry_matter = pd.DataFrame({'Cohort':[0],'#Tillers':[0],'Total Tillers':[0],'Leaf Number':[0],'Leaf Active Area':[0],'Rate of Leaf Growth':[0]})
+    dry_matter = pd.DataFrame({'Cohort':[0],'#Tillers':[0],'Total Tillers':[0],
+                               'Leaf Number':[0],'Leaf Active Area':[0],'Rate of Leaf Growth':[0]})
     dry_matter['Cohort'] = dry_matter['Cohort'].convert_dtypes(convert_integer=True)
     dry_matter['Leaf Number'] = dry_matter['Leaf Number'].convert_dtypes(convert_integer=True)
 
@@ -102,10 +103,10 @@ for file in os.listdir(path):
 
             #Growing first 3 leaves
             if (row['Total Degree Days'] - successive_leaf_thermal_time) >= phylochron_interval:
-                new_leaves += 1
-                dry_matter.loc[new_leaves,'Leaf Number'] = new_leaves
-                dry_matter.loc[new_leaves,'Rate of Leaf Growth'] = leaf_data[new_leaves-1]["max_leaf_area"] / phylochron_interval
+                dry_matter.loc[new_leaves,'Leaf Number'] = new_leaves + 1
+                dry_matter.loc[new_leaves,['Leaf Active Area','Rate of Leaf Growth']] = [0,leaf_data[new_leaves]["max_leaf_area"] / phylochron_interval]
                 successive_leaf_thermal_time = row['Total Degree Days']
+                new_leaves += 1
 
             if dry_matter['Leaf Number'].values.max() < 3:
                 continue
@@ -113,8 +114,6 @@ for file in os.listdir(path):
                 week_day += 1
                 new_tillers += max((row['Max Temp']+row['Min Temp'])/2,1) * TPr * 250
                 if week_day == 7:
-                    print(dry_matter['#Tillers'].values)
-                    print(max(dry_matter['#Tillers'].values))
                     dry_matter.loc[number_of_cohorts,['Cohort','#Tillers','Total Tillers']] = [number_of_cohorts+1,new_tillers,max(dry_matter['Total Tillers'].values)+new_tillers if number_of_cohorts>0 else new_tillers]
                     number_of_cohorts += 1
                     week_day = 0
@@ -126,13 +125,24 @@ for file in os.listdir(path):
                     week_day = 0
                     new_tillers = 0
             if (row['Total Degree Days'] - successive_leaf_thermal_time) >= phylochron_interval:
-                new_leaves += 1
-                dry_matter.loc[new_leaves,'Leaf Number'] = new_leaves
-                dry_matter.loc[new_leaves,'Rate of Leaf Growth'] = leaf_data[new_leaves-1]["max_leaf_area"] / phylochron_interval
+                dry_matter.loc[new_leaves,'Leaf Number'] = new_leaves + 1
+                dry_matter.loc[new_leaves,['Leaf Active Area','Rate of Leaf Growth']] = [0,leaf_data[new_leaves]["max_leaf_area"] / phylochron_interval]
                 successive_leaf_thermal_time = row['Total Degree Days']
+                new_leaves += 1
+        if dry_matter['Rate of Leaf Growth'].values.max() != 0:
+            print(dry_matter['Rate of Leaf Growth'].values.max(), dry_matter)
+            i=0
+            for value in dry_matter['Leaf Active Area']:
+                if value == 0:
+                    dry_matter.loc[i,'Leaf Active Area'] = row['Daily Degree Days'] * dry_matter['Rate of Leaf Growth'][i]
+                else:
+                    if dry_matter.loc[i,'Leaf Active Area'] + row['Daily Degree Days'] * dry_matter['Rate of Leaf Growth'][i] > leaf_data[i]['max_leaf_area']:
+                        dry_matter.loc[i,'Leaf Active Area'] = leaf_data[i]['max_leaf_area']
+                    else:
+                        dry_matter.loc[i,'Leaf Active Area'] += row['Daily Degree Days'] * dry_matter['Rate of Leaf Growth'][i]
+                i+=1
             
         print(dry_matter)
-
 print(sum(dry_matter['#Tillers']))            
     #         if max_tillers == 0:
     #             dry_matter['#Tillers'].loc[index-1] = dry_matter['#Tillers'].values[-1]
