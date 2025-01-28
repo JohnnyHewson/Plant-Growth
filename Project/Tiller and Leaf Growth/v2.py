@@ -111,7 +111,7 @@ for file in os.listdir(path):
                 continue
             else:
                 week_day += 1
-                new_tillers += max(row['Mean Temp'],0) * TPr * 250
+                new_tillers += max((row['Max Temp']+row['Min Temp'])/2,1) * TPr * 250
                 if week_day == 7:
                     print(dry_matter['#Tillers'].values)
                     print(max(dry_matter['#Tillers'].values))
