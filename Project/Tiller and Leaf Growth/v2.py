@@ -43,6 +43,26 @@ temp_data['Date'] = pd.to_datetime(temp_data['Date'], dayfirst=True)
 temp_data = temp_data.rename(columns={'Min_Temp':'Min Temp','Max_Temp':'Max Temp','Mean_Temp':'Mean Temp'})
 PAR_data = pd.read_csv('Average Hourly PAR.csv')
 
+# Function to calculate daily thermal time (degree days)
+def calculate_thermal_time(T_min, T_max, T_base):
+    T_min = max(T_min,0)
+    T_max = max(T_max,0)
+    T_opt = 26
+    TD_max = 37
+    T_t = 0
+    for r in range(1, 9):
+        f_r = (1 / 2) * (1 + cos((90 / 8) * (2 * r - 1) * pi / 180))
+        T_H = max(T_min + f_r * (T_max - T_min), 0)  # Degree Celsius
+        if T_H < T_opt:
+            T_t += T_H - T_base
+        elif T_H == T_opt:
+            T_t += T_opt - T_base
+        elif T_H < TD_max:
+            T_t += (T_opt - T_base) * (TD_max - T_H) / (TD_max - T_opt)
+        else:
+            T_t += 0
+    return max((1 / 8) * T_t, 0)  # Degree Celsius Days
+
 #Rate of Change of Daylength at Emergence
 def calc_RoCoDLatE(latitude, julian_day):
     tilt_of_earth = 23.44
@@ -72,6 +92,7 @@ for file in os.listdir(path):
     dry_matter['Leaf Number'] = dry_matter['Leaf Number'].convert_dtypes(convert_integer=True)
 
     ### Tiller and Leaf Growth Submodel ###
+    #Initialising Variables
     rate_of_change_of_daylength_at_emergence = 0
     new_tillers = 0
     new_leaves = 0
@@ -99,7 +120,6 @@ for file in os.listdir(path):
                 rate_of_change_of_daylength_at_emergence = calc_RoCoDLatE(Lat, julian_day)
                 rate_of_leaf_appearance_per_degree_day = 0.025 * rate_of_change_of_daylength_at_emergence + 0.0104
                 phylochron_interval = 1/rate_of_leaf_appearance_per_degree_day
-                leaf_interval = phylochron_interval
 
             #Growing first 3 leaves
             if (row['Total Degree Days'] - successive_leaf_thermal_time) >= phylochron_interval:
@@ -112,7 +132,8 @@ for file in os.listdir(path):
                 continue
             else:
                 week_day += 1
-                new_tillers += max((row['Max Temp']+row['Min Temp'])/2,1) * TPr * 250
+                new_tillers += calculate_thermal_time(row['Min Temp'],row['Max Temp'],T_base=1) * max(row['Mean Temp'],1) * TPr * 250
+                print(row['Date'], row['Daily Degree Days'],new_tillers,row['Min Temp'],row['Max Temp'],row['Mean Temp'])
                 if week_day == 7:
                     dry_matter.loc[number_of_cohorts,['Cohort','#Tillers','Total Tillers']] = [number_of_cohorts+1,new_tillers,max(dry_matter['Total Tillers'].values)+new_tillers if number_of_cohorts>0 else new_tillers]
                     number_of_cohorts += 1
@@ -130,7 +151,6 @@ for file in os.listdir(path):
                 successive_leaf_thermal_time = row['Total Degree Days']
                 new_leaves += 1
         if dry_matter['Rate of Leaf Growth'].values.max() != 0:
-            print(dry_matter['Rate of Leaf Growth'].values.max(), dry_matter)
             i=0
             for value in dry_matter['Leaf Active Area']:
                 if value == 0:
@@ -144,77 +164,3 @@ for file in os.listdir(path):
             
         print(dry_matter)
 print(sum(dry_matter['#Tillers']))            
-    #         if max_tillers == 0:
-    #             dry_matter['#Tillers'].loc[index-1] = dry_matter['#Tillers'].values[-1]
-    #             max_tillers = trunc(dry_matter['#Tillers'].values[-1])+1
-    #             N_n = pd.DataFrame({'N_n':[i for i in range(1,max_tillers+1)],
-    #                                 'Survival Chance':[1*(dry_matter['#Tillers'].values[-1] - trunc(dry_matter['#Tillers'].values[-1])) if i == trunc(dry_matter['#Tillers'].values[-1])+1 else 1 for i in range(1,max_tillers+1)]})
-    #             chance = list(int(i) for i in list('1'*max_tillers))
-    #         for index2,row2 in N_n.iterrows():
-    #             chance[index2] *= (1 / (1 + (((row['Stage Sum Degree Days']/400)/((A/row2['N_n'])**alpha)))**beta))
-    #         print(chance)
-    #         dry_matter.loc[index] = [new_tillers, new_leaves]             
-
-    #     #N_n = pd.concat([N_n, pd.DataFrame({'Multiplier':chance})], axis=1)
-    #     plant_data = pd.concat([plant_data, dry_matter], axis=1)
-
-    #     LAI_z = pd.DataFrame({'Level':[],'LAI':[]})
-    #     LAI_z['LAI'] = LAI_z['LAI'].astype(np.float64)
-    #     LAI_z['Level'] = LAI_z['Level'].astype(str)
-    #     LAI = float(0)
-
-    #     number_of_levels = 0
-    #     if dry_matter['#Leaves'].values[-1] >= 12:
-    #             number_of_levels = 5
-    #     else:
-    #         for i in range(trunc(dry_matter['#Leaves'].values[-1])+1):
-    #             if leaf_data[i]['sheath_length'] > leaf_data[i-1]['sheath_length']:
-    #                 number_of_levels += 1
-    #     level = 0
-    #     i=0
-    #     while number_of_levels-level>=0:
-    #         if dry_matter['#Leaves'].values[-1] - i < 0:
-    #             break
-    #         if trunc(dry_matter['#Leaves'].values[-1] - i) == 0:
-    #             if i < 11:
-    #                 LAI += leaf_data[i]['max_leaf_area'] * (dry_matter['#Leaves'].values[-1] - i)
-    #                 if leaf_data[i]['sheath_length'] > leaf_data[i-1]['sheath_length']:
-    #                     level += 1
-    #             else:
-    #                 LAI += leaf_data[11]['max_leaf_area'] * (dry_matter['#Leaves'].values[-1] - i)
-    #             LAI_z.loc[number_of_levels-level] = [f'Level {number_of_levels-level}',LAI]
-    #             break
-    #         if i > 0:
-    #             if i < 11:
-    #                 LAI += leaf_data[i]['max_leaf_area']
-    #                 if leaf_data[i]['sheath_length'] > leaf_data[i-1]['sheath_length']:
-    #                     level += 1
-    #             else:
-    #                 LAI += leaf_data[11]['max_leaf_area']
-    #             LAI_z.loc[number_of_levels-level] = [f'Level {number_of_levels-level}',LAI]
-    #         else:
-    #             LAI += leaf_data[0]['max_leaf_area']
-    #         i+=1
-    #     LAI_z = LAI_z.sort_index()
-    #     LAI_z['LAI'] = LAI_z['LAI'].multiply(projected_area_factor)
-    
-    #     # ### Root Growth Submodel ###
-    #     # root_growth = pd.DataFrame({'Layer':[], 'Length':[], 'Weight':[]})
-    #     # seminal_weight = 1.5 * (10**-4)
-    #     # lateral_weight = 4 * (10**-5)
-    #     # for index,row in plant_data.iterrows():
-    #     #     TR = min(0.2 + 0.12 * plant_data['Mean_Temp'],0)
-    #     #     if 'Seminal' in root_growth['Layer'].values(-1):
-    #     #         if index > 0:
-    #     #             length = TR + root_growth['Length'].values(-1)
-    #     #         else: 
-    #     #             length = TR
-    #     #         root_growth.loc[index] = ['Seminal',length,seminal_weight*length]
-    #     #     else:
-    #     #         root_growth.loc[index]
-
-    #     ### Light interception and photosynthesis submodel ###
-    #     Qp_z = pd.DataFrame({'Qp_0':PAR_data.loc[julian_day-1].values[1:]})
-    #     for i in range(1,number_of_levels+1):
-    #         Qp_z.insert(i,f'Qp_{i}',Qp_z['Qp_0'].apply(func=(lambda x: ((x*k)/(1-m))*exp(-k*LAI_z['LAI'].values[i]))))
-    # print(dry_matter)        
