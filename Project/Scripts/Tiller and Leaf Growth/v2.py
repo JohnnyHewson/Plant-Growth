@@ -5,7 +5,9 @@ import datetime
 import os
 from math import pi, cos, radians, sin, sqrt, trunc, exp
 
-configdir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'config.txt'))
+project_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..\\..'))
+
+configdir = os.path.join(project_path, 'config.txt')
 with open(configdir, 'r') as config_file:
     stages = []
     for line in config_file:
@@ -20,28 +22,17 @@ with open(configdir, 'r') as config_file:
                 m = float(line.strip().split(',')[1])
 
 # Leaf data from the paper (Table 1)
-leaf_data = [
-    {"lamina_length": 125, "lamina_width": 6, "sheath_length": 0, "max_leaf_area": 653},  # Leaf 1
-    {"lamina_length": 125, "lamina_width": 6, "sheath_length": 0, "max_leaf_area": 653},  # Leaf 2
-    {"lamina_length": 125, "lamina_width": 6, "sheath_length": 0, "max_leaf_area": 653},  # Leaf 3
-    {"lamina_length": 125, "lamina_width": 6, "sheath_length": 0, "max_leaf_area": 653},  # Leaf 4
-    {"lamina_length": 125, "lamina_width": 6, "sheath_length": 0, "max_leaf_area": 653},  # Leaf 5
-    {"lamina_length": 125, "lamina_width": 6, "sheath_length": 0, "max_leaf_area": 979},  # Leaf 6
-    {"lamina_length": 245, "lamina_width": 11, "sheath_length": 120, "max_leaf_area": 1797},  # Leaf 7
-    {"lamina_length": 275, "lamina_width": 13, "sheath_length": 125, "max_leaf_area": 2322},  # Leaf 8
-    {"lamina_length": 310, "lamina_width": 15, "sheath_length": 125, "max_leaf_area": 3164},  # Leaf 9
-    {"lamina_length": 350, "lamina_width": 15, "sheath_length": 135, "max_leaf_area": 3481},  # Leaf 10
-    {"lamina_length": 395, "lamina_width": 15, "sheath_length": 145, "max_leaf_area": 3988},  # Leaf 11
-    {"lamina_length": 445, "lamina_width": 15, "sheath_length": 155, "max_leaf_area": 4560},  # Leaf 12
-]
-projected_area_factor = 1e-6  # Convert from mm^2 to m^2
+leaf_data = pd.DataFrame({"Lamina Length":[125,125,125,125,125,125,245,275,310,350,395,445],
+                          "Lamina Width":[6,6,6,6,6,6,11,13,15,15,15,15],
+                          "Sheath Length":[0,0,0,0,0,0,120,125,125,135,145,155],
+                          "Max Leaf Area":[653,653,653,653,653,979,1797,2322,3164,3481,3988,4560]})
 
-path = os.path.abspath(os.path.join(os.path.dirname(__file__), 'Plant Data'))
+path = os.path.join(project_path, 'Data', 'Processed', 'Thermal Time')
 
-temp_data = pd.read_csv('Temp 1978-1979.csv')
-temp_data['Date'] = pd.to_datetime(temp_data['Date'], dayfirst=True)
+temp_data = pd.read_csv(os.path.join(project_path, 'Data', 'Raw', 'Temperature 1978-1981.csv'))
+temp_data['Date'] = pd.to_datetime(temp_data['Date'])
 temp_data = temp_data.rename(columns={'Min_Temp':'Min Temp','Max_Temp':'Max Temp','Mean_Temp':'Mean Temp'})
-PAR_data = pd.read_csv('Average Hourly PAR.csv')
+PAR_data = pd.read_csv(os.path.join(project_path, 'Data', 'Raw', 'Average Hourly PAR.csv'))
 
 # Function to calculate daily thermal time (degree days)
 def calculate_thermal_time(T_min, T_max, T_base):
@@ -82,12 +73,12 @@ def calc_RoCoDLatE(latitude, julian_day):
         return numerator / denominator * declination_rate
 
 for file in os.listdir(path):
-    plant_data = pd.read_csv(f'Plant Data\\{file}')
-    plant_data['Date'] = pd.to_datetime(plant_data['Date'], dayfirst=True)
+    plant_data = pd.read_csv(os.path.join(path,file))
+    plant_data['Date'] = pd.to_datetime(plant_data['Date'])
     plant_data = plant_data.merge(temp_data, on='Date', how='outer')
     plant_data = plant_data.dropna().reset_index().drop(columns='index')
-    dry_matter = pd.DataFrame({'Cohort':[0],'#Tillers':[0],'N_n':[0],'Proportion Surviving':[0],
-                               'Leaf Number':[0],'Leaf Active Area':[0],'Stage':[""],'Rate of Leaf Growth':[0],'Life Span':[0]})
+    dry_matter = pd.DataFrame({'Cohort':[int(0)],'#Tillers':[0],'N_n':[0],'Proportion Surviving':[0],
+                               'Leaf Number':[int(0)],'Leaf Active Area':[0],'Stage':[""],'Rate of Leaf Growth':[float(0)],'Life Span':[0]})
     dry_matter['Cohort'] = dry_matter['Cohort'].convert_dtypes(convert_integer=True)
     dry_matter['Leaf Number'] = dry_matter['Leaf Number'].convert_dtypes(convert_integer=True)
 
@@ -115,7 +106,7 @@ for file in os.listdir(path):
             if row['Stage Sum Degree Days'] == row['Daily Degree Days']:
                 row['Total Degree Days'] -= (row['Total Degree Days'] - row['Daily Degree Days'])
 
-            #Rate 
+            #Rate of new leaves
             if rate_of_change_of_daylength_at_emergence == 0:
                 rate_of_change_of_daylength_at_emergence = calc_RoCoDLatE(Lat, julian_day)
                 rate_of_leaf_appearance_per_degree_day = 0.025 * rate_of_change_of_daylength_at_emergence + 0.0104
@@ -124,7 +115,7 @@ for file in os.listdir(path):
             #Growing first 3 leaves
             if (row['Total Degree Days'] - successive_leaf_thermal_time) >= phylochron_interval:
                 dry_matter.loc[new_leaves,'Leaf Number'] = new_leaves + 1
-                dry_matter.loc[new_leaves,['Leaf Active Area','Stage','Rate of Leaf Growth']] = [0,'Grow',leaf_data[new_leaves]["max_leaf_area"] * rate_of_leaf_appearance_per_degree_day]
+                dry_matter.loc[new_leaves,['Leaf Active Area','Stage','Rate of Leaf Growth']] = [0,'Grow',leaf_data.loc[new_leaves,"Max Leaf Area"] * rate_of_leaf_appearance_per_degree_day]
                 successive_leaf_thermal_time = row['Total Degree Days']
                 new_leaves += 1
 
@@ -154,23 +145,30 @@ for file in os.listdir(path):
                     number_of_cohorts += 1
                     week_day = 0
                     new_tillers = 0
-            for c in dry_matter['Cohort']:
-                dry_matter.loc[c-1,'Proportion Surviving'] = 1 / (1 + ((row['Stage Sum Degree Days']/400) / (A/dry_matter['N_n'][c-1])**alpha)**beta)
+            #Calculating the proportion surviving in each Cohort
+            for c in dry_matter['Cohort'].dropna():
+                if c == 1:
+                    dry_matter.loc[c-1,'Proportion Surviving'] = 1
+                else:
+                    dry_matter.loc[c-1,'Proportion Surviving'] = 1 / (1 + ((row['Stage Sum Degree Days']/400) / (A/dry_matter['N_n'][c-1])**alpha)**beta)
+            #Grow Leaves
             if (row['Total Degree Days'] - successive_leaf_thermal_time) >= phylochron_interval:
                 dry_matter.loc[new_leaves,'Leaf Number'] = new_leaves + 1
-                dry_matter.loc[new_leaves,['Leaf Active Area','Stage','Rate of Leaf Growth']] = [0,'Grow',leaf_data[new_leaves]["max_leaf_area"] * rate_of_leaf_appearance_per_degree_day]
+                dry_matter.loc[new_leaves,['Leaf Active Area','Stage','Rate of Leaf Growth']] = [0,'Grow',leaf_data.loc[new_leaves,"Max Leaf Area"] * rate_of_leaf_appearance_per_degree_day]
                 successive_leaf_thermal_time = row['Total Degree Days']
                 new_leaves += 1
+        #Leaf Growth
         if dry_matter['Rate of Leaf Growth'].values.max() != 0:
             i=0
             for area in dry_matter['Leaf Active Area']:
+                #Growth Stage
                 if dry_matter.loc[i,'Stage'] == 'Grow':
                     if area == 0:
                         dry_matter.loc[i,'Leaf Active Area'] = max(row['Daily Degree Days'],0) * dry_matter['Rate of Leaf Growth'][i]
                     else:
-                        if dry_matter.loc[i,'Leaf Active Area'] != leaf_data[i]['max_leaf_area']:
-                            if dry_matter.loc[i,'Leaf Active Area'] + max(row['Daily Degree Days'],0) * dry_matter['Rate of Leaf Growth'][i] > leaf_data[i]['max_leaf_area']:
-                                dry_matter.loc[i,'Leaf Active Area'] = leaf_data[i]['max_leaf_area']
+                        if dry_matter.loc[i,'Leaf Active Area'] != leaf_data.loc[i,'Max Leaf Area']:
+                            if dry_matter.loc[i,'Leaf Active Area'] + max(row['Daily Degree Days'],0) * dry_matter['Rate of Leaf Growth'][i] > leaf_data.loc[i,'Max Leaf Area']:
+                                dry_matter.loc[i,'Leaf Active Area'] = leaf_data.loc[i,'Max Leaf Area']
                             else:
                                 dry_matter.loc[i,'Leaf Active Area'] += max(row['Daily Degree Days'],0) * dry_matter['Rate of Leaf Growth'][i]
                         else:
@@ -182,6 +180,7 @@ for file in os.listdir(path):
                             else:
                                 dry_matter.loc[i,'Life Span'] = 0.67 * (375 + (i-9) * 125)
                             dry_matter.loc[i,'Rate of Leaf Growth'] = 0
+                #Max Area Stage
                 elif dry_matter.loc[i,'Stage'] == 'Max Area':
                     if (dry_matter.loc[i,'Life Span'] - max(row['Daily Degree Days'],0)) > 0:
                         dry_matter.loc[i,'Life Span'] -= max(row['Daily Degree Days'],0)
@@ -193,7 +192,8 @@ for file in os.listdir(path):
                             dry_matter.loc[i,'Life Span'] = 0.33 * (375)
                         else:
                             dry_matter.loc[i,'Life Span'] = 0.33 * (375 + (i-9) * 125)
-                        dry_matter.loc[i,'Rate of Leaf Growth'] = (-1) * leaf_data[i]['max_leaf_area'] / dry_matter.loc[i,'Life Span']
+                        dry_matter.loc[i,'Rate of Leaf Growth'] = (-1) * leaf_data.loc[i,'Max Leaf Area'] / dry_matter.loc[i,'Life Span']
+                #Decay Stage
                 elif dry_matter.loc[i,'Stage'] == 'Decay':
                     if (dry_matter.loc[i,'Life Span'] - max(row['Daily Degree Days'],0)) > 0:
                         dry_matter.loc[i,'Life Span'] -= max(row['Daily Degree Days'],0)
@@ -201,55 +201,38 @@ for file in os.listdir(path):
                     else:
                         dry_matter.loc[i,['Leaf Active Area','Stage','Rate of Leaf Growth','Life Span']] = [0,'Dead',0,0]
                 i+=1
-        projected_area_factor = 1e-6  # Convert from mm^2 to m^2
+        #Leaf Area Index
+        LAI_z = pd.DataFrame({'Level':[int()],'Height':[float()],'LAI':[float()]})
+        LAI_z['Level'] = LAI_z['Level'].convert_dtypes(convert_integer=True)
 
-        LAI_z = pd.DataFrame({'Level':[int()],'Height':[float()],'Leaf Numbers':[""],'LAI':[float()]})
-
-        level = 1
+        level = 0
         for leaf in dry_matter['Leaf Number'].dropna():
-            print(leaf,level)
-            print(leaf_data[leaf-1]['sheath_length'],'<',leaf_data[leaf]['sheath_length'],leaf_data[leaf-1]['sheath_length'] < leaf_data[leaf]['sheath_length'])
-            LAI_z.loc[level,['Level','Height','LAI']] = [level,leaf_data[leaf-1]['sheath_length'],LAI_z.loc[level-1,'LAI']+dry_matter.loc[leaf-1,'Leaf Active Area']]
-            if leaf_data[leaf-1]['sheath_length'] < leaf_data[leaf]['sheath_length']:
+            LAI_z.loc[level,'Level'] = level + 1
+            LAI_z.loc[level,'Height'] = round(leaf_data.loc[leaf-1,'Sheath Length'] * 1e-3 * 250, 8)
+            LAI_z.loc[level,'LAI'] = round((0 if level == 0 else LAI_z.loc[level-1,'LAI'])+dry_matter.loc[leaf-1,'Leaf Active Area'] * 1e-6 * 250, 8)
+
+            if leaf_data.loc[leaf-1,'Sheath Length'] < leaf_data.loc[leaf,'Sheath Length']:
                 level += 1
-
                 
-
-        # number_of_levels = 0
-        # if dry_matter['Leaf Number'].values[-1] >= 12:
-        #         number_of_levels = 5
+        #         ### Root Growth Submodel ###
+        # root_growth = pd.DataFrame({'Layer':[], 'Length':[], 'Weight':[]})
+        # seminal_weight = 1.5 * (10**-4)
+        # lateral_weight = 4 * (10**-5)
+        # TR = min(0.2 + 0.12 * row['Mean Temp'],0)
+        # if 'Seminal' in root_growth['Layer'].values[-1]:
+        #     if index > 0:
+        #         length = TR + root_growth['Length'].values(-1)
+        #     else: 
+        #         length = TR
+        #     root_growth.loc[index] = ['Seminal',length,seminal_weight*length]
         # else:
-        #     for i in range(trunc(dry_matter['Leaf Number'].values[-1])+1):
-        #         if leaf_data[i]['sheath_length'] > leaf_data[i-1]['sheath_length']:
-        #             number_of_levels += 1
-        # level = 0
-        # i=0
-        # while number_of_levels-level>=0:
-        #     if dry_matter['Leaf Number'].values[-1] - i < 0:
-        #         break
-        #     if trunc(dry_matter['Leaf Number'].values[-1] - i) == 0:
-        #         if i < 11:
-        #             LAI += leaf_data[i]['leaf_area'] * (dry_matter['Leaf Number'].values[-1] - i)
-        #             if leaf_data[i]['sheath_length'] > leaf_data[i-1]['sheath_length']:
-        #                 level += 1
-        #         else:
-        #             LAI += leaf_data[11]['leaf_area'] * (dry_matter['Leaf Number'].values[-1] - i)
-        #         LAI_z.loc[number_of_levels-level] = [f'Level {number_of_levels-level}',LAI]
-        #         break
-        #     if i > 0:
-        #         if i < 11:
-        #             LAI += leaf_data[i]['leaf_area']
-        #             if leaf_data[i]['sheath_length'] > leaf_data[i-1]['sheath_length']:
-        #                 level += 1
-        #         else:
-        #             LAI += leaf_data[11]['leaf_area']
-        #         LAI_z.loc[number_of_levels-level] = [f'Level {number_of_levels-level}',LAI]
-        #     else:
-        #         LAI += leaf_data[0]['leaf_area']
-        #     i+=1
-        # LAI_z = LAI_z.sort_index()
-        # LAI_z['LAI'] = LAI_z['LAI'].multiply(projected_area_factor)
-        if len(dry_matter['Leaf Number'].values) > 1:
-            print(max(dry_matter['Leaf Number'].values.dropna()))
-        print(LAI_z)    
-print(dry_matter)       
+        #     root_growth.loc[index]
+
+        ## Light interception and photosynthesis submodel ###
+        Qp_z = pd.DataFrame({'Qp_0':PAR_data.loc[julian_day-1].values[1:]})
+        print(Qp_z)
+        # for i in LAI_z['Level']:
+        #     Qp_z.insert(i,f'Qp_{i}',Qp_z['Qp_0'].apply(func=(lambda x: ((x*k)/(1-m))*exp(-k*LAI_z['LAI'].values[i]))))
+    print(file)
+    print(LAI_z)    
+    print(dry_matter)       

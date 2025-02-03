@@ -5,15 +5,17 @@ import datetime
 import os
 
 # Load the stage timings and temperature data
-stage_timings = pd.read_csv(os.path.abspath(os.path.join(os.path.dirname(__file__), '..\\..\\Data\\Raw', 'Stage Timings.csv')))
+project_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..\\..'))
+print(project_path)
+stage_timings = pd.read_csv(os.path.join(project_path, 'Data', 'Raw','Stage Timings.csv'))
 print(stage_timings)
 
-thermal_data = pd.read_csv(os.path.abspath(os.path.join(os.path.dirname(__file__), '..\\..\\Data\\Raw', 'Temperature 1978-1981.csv')))
+thermal_data = pd.read_csv(os.path.join(project_path, 'Data', 'Raw','Temperature 1978-1981.csv'))
 thermal_data['Date'] = pd.to_datetime(thermal_data['Date'])
 print(thermal_data)
 # Load stage details from config.txt
 stages = []
-configdir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..\\..', 'config.txt'))
+configdir = os.path.join(project_path, 'config.txt')
 with open(configdir, 'r') as config_file:
     for line in config_file:
         if line.__contains__(','):
@@ -28,7 +30,6 @@ with open(configdir, 'r') as config_file:
                     'T_Base': float(T_base),
                     'Degree_Days': float(degree_days)
                     })
-print('test')
 
 # Constants
 P_opt = 20  # Optimal photoperiod-effective hours
@@ -165,8 +166,8 @@ for index, row in stage_timings.iterrows():
             else:
                 break
 
-    # # Convert results to a DataFrame and save to CSV
-    # plant_results_df = pd.DataFrame(plant_results)
-    # output_file = f"True Thermal Time/{plant_id}_True_Thermal_Time.csv"
-    # plant_results_df.to_csv(output_file, index=False)
-    # print(f"Saved thermal time data for {plant_id} to {output_file}")
+    # Convert results to a DataFrame and save to CSV
+    plant_results_df = pd.DataFrame(plant_results)
+    output_file = f"{plant_id} Thermal Time.csv"
+    plant_results_df.to_csv(os.path.join(project_path, 'Data', 'Processed', 'Thermal Time', output_file), index=False)
+    print(f"Saved thermal time data for {plant_id} to {os.path.join(project_path, 'Data', 'Processed', 'Thermal Time', output_file)}")
