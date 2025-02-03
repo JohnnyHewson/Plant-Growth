@@ -86,8 +86,8 @@ for file in os.listdir(path):
     plant_data['Date'] = pd.to_datetime(plant_data['Date'], dayfirst=True)
     plant_data = plant_data.merge(temp_data, on='Date', how='outer')
     plant_data = plant_data.dropna().reset_index().drop(columns='index')
-    dry_matter = pd.DataFrame({'Cohort':[0],'#Tillers':[0],'Total Tillers':[0],
-                               'Leaf Number':[0],'Leaf Active Area':[0],'Rate of Leaf Growth':[0]})
+    dry_matter = pd.DataFrame({'Cohort':[0],'#Tillers':[0],'N_n':[0],'Proportion Surviving':[0],
+                               'Leaf Number':[0],'Leaf Active Area':[0],'Stage':[""],'Rate of Leaf Growth':[0],'Life Span':[0]})
     dry_matter['Cohort'] = dry_matter['Cohort'].convert_dtypes(convert_integer=True)
     dry_matter['Leaf Number'] = dry_matter['Leaf Number'].convert_dtypes(convert_integer=True)
 
@@ -124,7 +124,7 @@ for file in os.listdir(path):
             #Growing first 3 leaves
             if (row['Total Degree Days'] - successive_leaf_thermal_time) >= phylochron_interval:
                 dry_matter.loc[new_leaves,'Leaf Number'] = new_leaves + 1
-                dry_matter.loc[new_leaves,['Leaf Active Area','Rate of Leaf Growth']] = [0,leaf_data[new_leaves]["max_leaf_area"] / phylochron_interval]
+                dry_matter.loc[new_leaves,['Leaf Active Area','Stage','Rate of Leaf Growth']] = [0,'Grow',leaf_data[new_leaves]["max_leaf_area"] * rate_of_leaf_appearance_per_degree_day]
                 successive_leaf_thermal_time = row['Total Degree Days']
                 new_leaves += 1
 
@@ -132,35 +132,124 @@ for file in os.listdir(path):
                 continue
             else:
                 week_day += 1
-                new_tillers += calculate_thermal_time(row['Min Temp'],row['Max Temp'],T_base=1) * max(row['Mean Temp'],1) * TPr * 250
-                print(row['Date'], row['Daily Degree Days'],new_tillers,row['Min Temp'],row['Max Temp'],row['Mean Temp'])
+                new_tillers += max(row['Mean Temp'],0) * TPr * 250
+                #new_tillers += calculate_thermal_time(row['Min Temp'],row['Max Temp'],T_base=1) * TPr * 250
                 if week_day == 7:
-                    dry_matter.loc[number_of_cohorts,['Cohort','#Tillers','Total Tillers']] = [number_of_cohorts+1,new_tillers,max(dry_matter['Total Tillers'].values)+new_tillers if number_of_cohorts>0 else new_tillers]
+                    dry_matter.loc[number_of_cohorts,['Cohort','#Tillers']] = [number_of_cohorts+1,new_tillers]
+                    if number_of_cohorts == 0:
+                        dry_matter.loc[number_of_cohorts,'N_n'] = 0 
+                    else:
+                        dry_matter.loc[number_of_cohorts,'N_n'] = dry_matter['#Tillers'][number_of_cohorts-1] + dry_matter['N_n'][number_of_cohorts-1]
                     number_of_cohorts += 1
                     week_day = 0
                     new_tillers = 0
         elif row['Stage'] == 'Double Ridge':
+            #Letting last week of growth in emergence phase be counted
             if week_day > 0:
-                    dry_matter.loc[number_of_cohorts,['Cohort','#Tillers','Total Tillers']] = [number_of_cohorts+1,new_tillers,max(dry_matter['Total Tillers'].values)+new_tillers if number_of_cohorts>0 else new_tillers]
+                    dry_matter.loc[number_of_cohorts,['Cohort','#Tillers']] = [number_of_cohorts+1,new_tillers]
+                    if number_of_cohorts == 0:
+                        dry_matter.loc[number_of_cohorts,'N_n'] = 0 
+                    else:
+                        dry_matter.loc[number_of_cohorts,'N_n'] = dry_matter['#Tillers'][number_of_cohorts-1] + dry_matter['N_n'][number_of_cohorts-1]
                     number_of_cohorts += 1
                     week_day = 0
                     new_tillers = 0
+            for c in dry_matter['Cohort']:
+                dry_matter.loc[c-1,'Proportion Surviving'] = 1 / (1 + ((row['Stage Sum Degree Days']/400) / (A/dry_matter['N_n'][c-1])**alpha)**beta)
             if (row['Total Degree Days'] - successive_leaf_thermal_time) >= phylochron_interval:
                 dry_matter.loc[new_leaves,'Leaf Number'] = new_leaves + 1
-                dry_matter.loc[new_leaves,['Leaf Active Area','Rate of Leaf Growth']] = [0,leaf_data[new_leaves]["max_leaf_area"] / phylochron_interval]
+                dry_matter.loc[new_leaves,['Leaf Active Area','Stage','Rate of Leaf Growth']] = [0,'Grow',leaf_data[new_leaves]["max_leaf_area"] * rate_of_leaf_appearance_per_degree_day]
                 successive_leaf_thermal_time = row['Total Degree Days']
                 new_leaves += 1
         if dry_matter['Rate of Leaf Growth'].values.max() != 0:
             i=0
-            for value in dry_matter['Leaf Active Area']:
-                if value == 0:
-                    dry_matter.loc[i,'Leaf Active Area'] = row['Daily Degree Days'] * dry_matter['Rate of Leaf Growth'][i]
-                else:
-                    if dry_matter.loc[i,'Leaf Active Area'] + row['Daily Degree Days'] * dry_matter['Rate of Leaf Growth'][i] > leaf_data[i]['max_leaf_area']:
-                        dry_matter.loc[i,'Leaf Active Area'] = leaf_data[i]['max_leaf_area']
+            for area in dry_matter['Leaf Active Area']:
+                if dry_matter.loc[i,'Stage'] == 'Grow':
+                    if area == 0:
+                        dry_matter.loc[i,'Leaf Active Area'] = max(row['Daily Degree Days'],0) * dry_matter['Rate of Leaf Growth'][i]
                     else:
-                        dry_matter.loc[i,'Leaf Active Area'] += row['Daily Degree Days'] * dry_matter['Rate of Leaf Growth'][i]
+                        if dry_matter.loc[i,'Leaf Active Area'] != leaf_data[i]['max_leaf_area']:
+                            if dry_matter.loc[i,'Leaf Active Area'] + max(row['Daily Degree Days'],0) * dry_matter['Rate of Leaf Growth'][i] > leaf_data[i]['max_leaf_area']:
+                                dry_matter.loc[i,'Leaf Active Area'] = leaf_data[i]['max_leaf_area']
+                            else:
+                                dry_matter.loc[i,'Leaf Active Area'] += max(row['Daily Degree Days'],0) * dry_matter['Rate of Leaf Growth'][i]
+                        else:
+                            dry_matter.loc[i,'Stage'] = 'Max Area'
+                            if i < 9:
+                                dry_matter.loc[i,'Life Span'] = 0.67 * (3.5 * phylochron_interval)
+                            elif i == 9:
+                                dry_matter.loc[i,'Life Span'] = 0.67 * (375)
+                            else:
+                                dry_matter.loc[i,'Life Span'] = 0.67 * (375 + (i-9) * 125)
+                            dry_matter.loc[i,'Rate of Leaf Growth'] = 0
+                elif dry_matter.loc[i,'Stage'] == 'Max Area':
+                    if (dry_matter.loc[i,'Life Span'] - max(row['Daily Degree Days'],0)) > 0:
+                        dry_matter.loc[i,'Life Span'] -= max(row['Daily Degree Days'],0)
+                    else:
+                        dry_matter.loc[i,'Stage'] = 'Decay'
+                        if i < 9:
+                            dry_matter.loc[i,'Life Span'] = 0.33 * (3.5 * phylochron_interval)
+                        elif i == 9:
+                            dry_matter.loc[i,'Life Span'] = 0.33 * (375)
+                        else:
+                            dry_matter.loc[i,'Life Span'] = 0.33 * (375 + (i-9) * 125)
+                        dry_matter.loc[i,'Rate of Leaf Growth'] = (-1) * leaf_data[i]['max_leaf_area'] / dry_matter.loc[i,'Life Span']
+                elif dry_matter.loc[i,'Stage'] == 'Decay':
+                    if (dry_matter.loc[i,'Life Span'] - max(row['Daily Degree Days'],0)) > 0:
+                        dry_matter.loc[i,'Life Span'] -= max(row['Daily Degree Days'],0)
+                        dry_matter.loc[i,'Leaf Active Area'] += max(row['Daily Degree Days'],0) * dry_matter['Rate of Leaf Growth'][i]
+                    else:
+                        dry_matter.loc[i,['Leaf Active Area','Stage','Rate of Leaf Growth','Life Span']] = [0,'Dead',0,0]
                 i+=1
-            
-        print(dry_matter)
-print(sum(dry_matter['#Tillers']))            
+        projected_area_factor = 1e-6  # Convert from mm^2 to m^2
+
+        LAI_z = pd.DataFrame({'Level':[int()],'Height':[float()],'Leaf Numbers':[""],'LAI':[float()]})
+
+        level = 1
+        for leaf in dry_matter['Leaf Number'].dropna():
+            print(leaf,level)
+            print(leaf_data[leaf-1]['sheath_length'],'<',leaf_data[leaf]['sheath_length'],leaf_data[leaf-1]['sheath_length'] < leaf_data[leaf]['sheath_length'])
+            LAI_z.loc[level,['Level','Height','LAI']] = [level,leaf_data[leaf-1]['sheath_length'],LAI_z.loc[level-1,'LAI']+dry_matter.loc[leaf-1,'Leaf Active Area']]
+            if leaf_data[leaf-1]['sheath_length'] < leaf_data[leaf]['sheath_length']:
+                level += 1
+
+                
+
+        # number_of_levels = 0
+        # if dry_matter['Leaf Number'].values[-1] >= 12:
+        #         number_of_levels = 5
+        # else:
+        #     for i in range(trunc(dry_matter['Leaf Number'].values[-1])+1):
+        #         if leaf_data[i]['sheath_length'] > leaf_data[i-1]['sheath_length']:
+        #             number_of_levels += 1
+        # level = 0
+        # i=0
+        # while number_of_levels-level>=0:
+        #     if dry_matter['Leaf Number'].values[-1] - i < 0:
+        #         break
+        #     if trunc(dry_matter['Leaf Number'].values[-1] - i) == 0:
+        #         if i < 11:
+        #             LAI += leaf_data[i]['leaf_area'] * (dry_matter['Leaf Number'].values[-1] - i)
+        #             if leaf_data[i]['sheath_length'] > leaf_data[i-1]['sheath_length']:
+        #                 level += 1
+        #         else:
+        #             LAI += leaf_data[11]['leaf_area'] * (dry_matter['Leaf Number'].values[-1] - i)
+        #         LAI_z.loc[number_of_levels-level] = [f'Level {number_of_levels-level}',LAI]
+        #         break
+        #     if i > 0:
+        #         if i < 11:
+        #             LAI += leaf_data[i]['leaf_area']
+        #             if leaf_data[i]['sheath_length'] > leaf_data[i-1]['sheath_length']:
+        #                 level += 1
+        #         else:
+        #             LAI += leaf_data[11]['leaf_area']
+        #         LAI_z.loc[number_of_levels-level] = [f'Level {number_of_levels-level}',LAI]
+        #     else:
+        #         LAI += leaf_data[0]['leaf_area']
+        #     i+=1
+        # LAI_z = LAI_z.sort_index()
+        # LAI_z['LAI'] = LAI_z['LAI'].multiply(projected_area_factor)
+        if len(dry_matter['Leaf Number'].values) > 1:
+            print(max(dry_matter['Leaf Number'].values.dropna()))
+        print(LAI_z)    
+print(dry_matter)       
