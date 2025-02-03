@@ -4,7 +4,7 @@
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>d3bc5189-deeb-4494-8ef8-fd580563e059</ProjectGuid>
     <ProjectHome>.</ProjectHome>
-    <StartupFile>TtGraphing.py</StartupFile>
+    <StartupFile>True Thermal Time.py</StartupFile>
     <SearchPath>
     </SearchPath>
     <WorkingDirectory>.</WorkingDirectory>

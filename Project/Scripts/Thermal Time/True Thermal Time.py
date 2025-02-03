@@ -5,19 +5,15 @@ import datetime
 import os
 
 # Load the stage timings and temperature data
-stage_timings = pd.read_csv('Stage Timings.csv')
+stage_timings = pd.read_csv(os.path.abspath(os.path.join(os.path.dirname(__file__), '..\\..\\Data\\Raw', 'Stage Timings.csv')))
+print(stage_timings)
 
-min_temp_data = pd.read_csv('Rothamsted Daily Min Temps 01.09.1978-31.08.1981.csv')
-max_temp_data = pd.read_csv('Rothamsted Daily Max Temps 01.09.1978-31.08.1981.csv')
-
-min_temp_data['Date'] = pd.to_datetime(min_temp_data['Date'], dayfirst=True)
-max_temp_data['Date'] = pd.to_datetime(max_temp_data['Date'], dayfirst=True)
-
-thermal_data = max_temp_data.merge(min_temp_data, on='Date', how='outer')
-
+thermal_data = pd.read_csv(os.path.abspath(os.path.join(os.path.dirname(__file__), '..\\..\\Data\\Raw', 'Temperature 1978-1981.csv')))
+thermal_data['Date'] = pd.to_datetime(thermal_data['Date'])
+print(thermal_data)
 # Load stage details from config.txt
 stages = []
-configdir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'config.txt'))
+configdir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..\\..', 'config.txt'))
 with open(configdir, 'r') as config_file:
     for line in config_file:
         if line.__contains__(','):
@@ -32,7 +28,7 @@ with open(configdir, 'r') as config_file:
                     'T_Base': float(T_base),
                     'Degree_Days': float(degree_days)
                     })
-
+print('test')
 
 # Constants
 P_opt = 20  # Optimal photoperiod-effective hours
@@ -74,7 +70,7 @@ latitude = 51.81  # Rothamsted
 # Loop through each plant in the stage timings data
 for index, row in stage_timings.iterrows():
     plant_id = row['Plant']
-    seeding_date = pd.to_datetime(row['Seeding Date'], format='%d/%m/%Y')
+    seeding_date = pd.to_datetime(row['Seeding Date'])
 
     # Determine the growing year range
     year_start = datetime.datetime(seeding_date.year, 9, 1)
@@ -97,8 +93,8 @@ for index, row in stage_timings.iterrows():
     stage_days = 0
     for _, day_data in filtered_thermal_data.iterrows():
         date = day_data['Date']
-        T_min = max(day_data['T_min'], 0)
-        T_max = max(day_data['T_max'], 0)
+        T_min = max(day_data['Min Temp'], 0)
+        T_max = max(day_data['Max Temp'], 0)
         T_base = current_stage['T_Base']
         # Calculate daily thermal time (degree days)
         thermal_time = calculate_thermal_time(T_min, T_max, T_base)
@@ -169,8 +165,8 @@ for index, row in stage_timings.iterrows():
             else:
                 break
 
-    # Convert results to a DataFrame and save to CSV
-    plant_results_df = pd.DataFrame(plant_results)
-    output_file = f"True Thermal Time/{plant_id}_True_Thermal_Time.csv"
-    plant_results_df.to_csv(output_file, index=False)
-    print(f"Saved thermal time data for {plant_id} to {output_file}")
+    # # Convert results to a DataFrame and save to CSV
+    # plant_results_df = pd.DataFrame(plant_results)
+    # output_file = f"True Thermal Time/{plant_id}_True_Thermal_Time.csv"
+    # plant_results_df.to_csv(output_file, index=False)
+    # print(f"Saved thermal time data for {plant_id} to {output_file}")
