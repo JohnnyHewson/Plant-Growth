@@ -4,7 +4,7 @@
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>d3bc5189-deeb-4494-8ef8-fd580563e059</ProjectGuid>
     <ProjectHome>.</ProjectHome>
-    <StartupFile>TtGraphing.py</StartupFile>
+    <StartupFile>True Thermal Time.py</StartupFile>
     <SearchPath>
     </SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
@@ -23,11 +23,7 @@
   <ItemGroup>
     <Compile Include="BarGraph.py" />
     <Compile Include="DeclensionAngleTesting.py" />
-    <Compile Include="RSME Graph.py" />
     <Compile Include="True Thermal Time.py" />
-    <Compile Include="Photovernalized Affected Thermal Time.py" />
-    <Compile Include="Photoperiod Affected Thermal Time.py" />
-    <Compile Include="Thermal Time.py" />
     <Compile Include="TtGraphing.py" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
