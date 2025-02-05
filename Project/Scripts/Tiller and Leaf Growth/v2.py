@@ -72,16 +72,26 @@ def calc_RoCoDLatE(latitude, julian_day):
     else:
         return numerator / denominator * declination_rate
 
+#For testing i would recommend only have 1 file of plant data in the thermal time folder in the processed data folder
 for file in os.listdir(path):
     plant_data = pd.read_csv(os.path.join(path,file))
     plant_data['Date'] = pd.to_datetime(plant_data['Date'])
     plant_data = plant_data.merge(temp_data, on='Date', how='outer')
     plant_data = plant_data.dropna().reset_index().drop(columns='index')
+    
+    #Setting up Dataframes
     dry_matter = pd.DataFrame({'Cohort':[int(0)],'#Tillers':[0],'N_n':[0],'Proportion Surviving':[0],
                                'Leaf Number':[int(0)],'Leaf Active Area':[0],'Stage':[""],'Rate of Leaf Growth':[float(0)],'Life Span':[0]})
     dry_matter['Cohort'] = dry_matter['Cohort'].convert_dtypes(convert_integer=True)
     dry_matter['Leaf Number'] = dry_matter['Leaf Number'].convert_dtypes(convert_integer=True)
 
+    LAI_z = pd.DataFrame({'Level':[int()],'Height':[float()],'LAI':[float()]})
+    LAI_z['Level'] = LAI_z['Level'].convert_dtypes(convert_integer=True)
+
+    Photosynthesis = pd.DataFrame({'Level (z)':[int()]f:[float()]})
+    #https://stackoverflow.com/questions/24290495/constructing-3d-pandas-dataframe
+    Photosynthesis['Level (z)'] = Photosynthesis['Level (z)'].convert_dtypes(convert_integer=True)
+    
     ### Tiller and Leaf Growth Submodel ###
     #Initialising Variables
     rate_of_change_of_daylength_at_emergence = 0
@@ -202,8 +212,6 @@ for file in os.listdir(path):
                         dry_matter.loc[i,['Leaf Active Area','Stage','Rate of Leaf Growth','Life Span']] = [0,'Dead',0,0]
                 i+=1
         #Leaf Area Index
-        LAI_z = pd.DataFrame({'Level':[int()],'Height':[float()],'LAI':[float()]})
-        LAI_z['Level'] = LAI_z['Level'].convert_dtypes(convert_integer=True)
 
         level = 0
         for leaf in dry_matter['Leaf Number'].dropna():
@@ -229,8 +237,9 @@ for file in os.listdir(path):
         #     root_growth.loc[index]
 
         ## Light interception and photosynthesis submodel ###
-        Qp_z = pd.DataFrame({'Qp_0':PAR_data.loc[julian_day-1].values[1:]})
+
         print(Qp_z)
+        Photosynthesis = pd.DataFrame({'Level (z)':[0]'Qp_0':PAR_data.loc[julian_day-1].values[1:]})
         # for i in LAI_z['Level']:
         #     Qp_z.insert(i,f'Qp_{i}',Qp_z['Qp_0'].apply(func=(lambda x: ((x*k)/(1-m))*exp(-k*LAI_z['LAI'].values[i]))))
     print(file)

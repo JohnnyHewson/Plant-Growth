@@ -64,6 +64,7 @@ for file in os.listdir(path):
     alpha = 1.46
     beta = 2.24
     print(plant_data)
+    #For testing i would recommend only have 1 file of plant data in the thermal time folder in the processed data folder
     for index,row in plant_data.iterrows():
         julian_day = row['Date'].timetuple().tm_yday
         if row['Stage'] == 'Seeding':
