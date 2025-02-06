@@ -139,8 +139,8 @@ for file in os.listdir(path):
                 continue
             else:
                 week_day += 1
-                new_tillers += max(row['Mean Temp'],0) * TPr * 250
-                #new_tillers += calculate_thermal_time(row['Min Temp'],row['Max Temp'],T_base=1) * TPr * 250
+                #new_tillers += max(row['Mean Temp'],0) * TPr * 250
+                new_tillers += calculate_thermal_time(row['Min Temp'],row['Max Temp'],T_base=1) * TPr * 250
                 if week_day == 7:
                     dry_matter.loc[number_of_cohorts,['Cohort','#Tillers']] = [number_of_cohorts+1,new_tillers]
                     if number_of_cohorts == 0:
@@ -242,35 +242,41 @@ for file in os.listdir(path):
         # else:
         #     root_growth.loc[index]
 
-        ## Light interception and photosynthesis submodel ###
-        for i in LAI_z['Level']:
-            Photosynthesis.loc[i,'Level (z)'] = i
-            H = 0
-            R = 0
-            for j in PAR_data.loc[julian_day]:
-                #Counting number of daylight hours
-                if j != 0:
-                    H += 1
-                #Qp is the intensity of PAR at a given layer
-                if LAI_z.loc[i-1,'Level'] == 0:
-                    Qp = j
-                else:
-                    Qp = ((j*k)/(1-m))*exp((-k)*(LAI_z.loc[i-1,'LAI']))
-                #r_s is the stomatal resistance
-                r_s = 1.56 * 75(1+(100/Qp))#*(1-0.3*D) is usually included
-                #where D is the vapour pressure deficity however this crop is considered to be free from water stress
-                #r_p is the total physical resistance
-                r_p = r_a + r_s + r_m
-                #P_max is hte maximum photosynthesis rate
-                P_max = 0.995*(C_a/r_p)
-                #I do not have hourly temperature but I will assume it follows a trigonometric pattern between peaks
-                #with max temp at 13:00 and min temp in hour last hour without sunlight
-                if j.__index__
-                #P_m is the temperature-dependent maximum photosynthetic rate
-                P_m = (0.044*6*(10**9)*)
-                #R is the Total respiration in each day
-                R += 0.65*grc*
-        print(Photosynthesis)
+        # ## Light interception and photosynthesis submodel ###
+        # for i in LAI_z['Level']:
+        #     Photosynthesis.loc[i,'Level (z)'] = i
+        #     H = 0
+        #     R = 0
+        #     for j in PAR_data.loc[julian_day]:
+        #         #Counting number of daylight hours
+        #         if j != 0:
+        #             H += 1
+        #         #Qp is the intensity of PAR at a given layer
+        #         if LAI_z.loc[i-1,'Level'] == 0:
+        #             Qp = j
+        #         else:
+        #             Qp = ((j*k)/(1-m))*exp((-k)*(LAI_z.loc[i-1,'LAI']))
+        #         #r_s is the stomatal resistance
+        #         r_s = 1.56 * 75(1+(100/Qp))#*(1-0.3*D) is usually included
+        #         #where D is the vapour pressure deficity however this crop is considered to be free from water stress
+        #         #r_p is the total physical resistance
+        #         r_p = r_a + r_s + r_m
+        #         #P_max is hte maximum photosynthesis rate
+        #         P_max = 0.995*(C_a/r_p)
+        #         #I do not have hourly temperature but I will assume it follows a trigonometric pattern between peaks
+        #         #with max temp at 13:00 and min temp in hour last hour without sunlight
+        #         if  PAR_data.loc[julian_day].rfind(0,0,13)-1 <= j.__index__ and j.__index__ <= 13:
+        #             T_h = row['Max Temp']*sin(((j.__index__-1)*pi)/24)
+        #         #P_m is the temperature-dependent maximum photosynthetic rate
+        #         P_m = (0.044*6*(10**9)*)
+        #         #R is the Total respiration in each day
+        #         R += 0.65*grc*
+        # print(Photosynthesis)
+        print(dry_matter)
+        
+        ###Testing number of tillers grown###
+        if row['Stage'] == 'Double Ridge':
+            raise KeyboardInterrupt
 
     print(file)
     print(LAI_z)    

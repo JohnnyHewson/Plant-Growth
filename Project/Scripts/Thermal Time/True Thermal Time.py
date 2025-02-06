@@ -36,16 +36,18 @@ P_opt = 20  # Optimal photoperiod-effective hours
 V_sat = 33
 V_base = 8
 
+
 # Function to calculate photoperiod-effective hours (P_H)
 def calculate_photoperiod(lat, date):
     Jday = date.timetuple().tm_yday
-    theta1 = 2 * pi * (Jday - 80) / 365
-    theta2 = 0.0335 * (sin(2 * pi * Jday) - sin(2 * pi * 80)) / 365
+    theta1 = 2 * pi * ((Jday - 80) / 365)
+    theta2 = 0.0335 * (sin(2 * pi * (Jday/ 365)) - sin(2 * pi * (80/ 365))) 
     theta = theta1 + theta2
     Dec = asin(0.3978 * sin(theta))
-    D = -0.10453 / (cos(lat * pi / 180) * cos(Dec))
-    P_R = acos(D - tan(lat * pi / 180) * tan(Dec))
-    return 24 * P_R / pi
+    #original: D = -0.10453 / (cos(lat) * cos(Dec)) 
+    D = (-0.10453 * cos(Dec)) / cos(lat)
+    P_R = acos(D - (tan(lat) * tan(Dec)))
+    return 24 * (P_R / pi)
 
 # Function to calculate daily thermal time (degree days)
 def calculate_thermal_time(T_min, T_max, T_base):
@@ -53,20 +55,20 @@ def calculate_thermal_time(T_min, T_max, T_base):
     TD_max = 37
     T_t = 0
     for r in range(1, 9):
-        f_r = (1 / 2) * (1 + cos((90 / 8) * (2 * r - 1) * pi / 180))
+        f_r = (1 / 2) * (1 + cos(((90 * (pi / 180)) / 8) * ((2 * r) - 1)))
         T_H = max(T_min + f_r * (T_max - T_min), 0)  # Degree Celsius
         if T_H < T_opt:
             T_t += T_H - T_base
         elif T_H == T_opt:
             T_t += T_opt - T_base
         elif T_H < TD_max:
-            T_t += (T_opt - T_base) * (TD_max - T_H) / (TD_max - T_opt)
+            T_t += (T_opt - T_base) * ((TD_max - T_H) / (TD_max - T_opt))
         else:
             T_t += 0
     return max((1 / 8) * T_t, 0)  # Degree Celsius Days
 
 # Latitude input (can be modified as needed)
-latitude = 51.81  # Rothamsted
+latitude = 51.81 * pi / 180  # Rothamsted
 
 # Loop through each plant in the stage timings data
 for index, row in stage_timings.iterrows():
