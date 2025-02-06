@@ -1,9 +1,8 @@
-from logging import root
-import numpy as np
+from numpy import float64
 import pandas as pd
 import datetime
 import os
-from math import pi, cos, radians, sin, sqrt, trunc, exp
+from math import isnan, pi, cos, radians, sin, sqrt, exp
 
 project_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..\\..'))
 
@@ -14,12 +13,19 @@ with open(configdir, 'r') as config_file:
         if line.__contains__(','):
             if line[:line.index(',')] == 'shoot_production_rate':
                 TPr = float(line.strip().split(',')[1])
-            if line[:line.index(',')] == 'Latitude':
+            elif line[:line.index(',')] == 'Latitude':
                 Lat = float(line.strip().split(',')[1])
-            if line[:line.index(',')] == 'extinction_coefficient':
+            elif line[:line.index(',')] == 'extinction_coefficient':
                 k = float(line.strip().split(',')[1])
-            if line[:line.index(',')] == 'leaf_transmission_coefficient':
+            elif line[:line.index(',')] == 'leaf_transmission_coefficient':
                 m = float(line.strip().split(',')[1])
+            elif line[:line.index(',')] == 'crop_boundary_layer_resistance':
+                r_a = float(line.strip().split(',')[1])
+            elif line[:line.index(',')] == 'mesophyll_resistance':
+                r_m = float(line.strip().split(',')[1])
+            elif line[:line.index(',')] == 'ambient_co2_concentration':
+                C_a = float(line.strip().split(',')[1])
+
 
 # Leaf data from the paper (Table 1)
 leaf_data = pd.DataFrame({"Lamina Length":[125,125,125,125,125,125,245,275,310,350,395,445],
@@ -32,8 +38,8 @@ path = os.path.join(project_path, 'Data', 'Processed', 'Thermal Time')
 temp_data = pd.read_csv(os.path.join(project_path, 'Data', 'Raw', 'Temperature 1978-1981.csv'))
 temp_data['Date'] = pd.to_datetime(temp_data['Date'])
 temp_data = temp_data.rename(columns={'Min_Temp':'Min Temp','Max_Temp':'Max Temp','Mean_Temp':'Mean Temp'})
-PAR_data = pd.read_csv(os.path.join(project_path, 'Data', 'Raw', 'Average Hourly PAR.csv'))
-
+PAR_data = pd.read_csv(os.path.join(project_path, 'Data', 'Raw', 'Average Hourly PAR.csv'),index_col=0,header=0)
+print(PAR_data)
 # Function to calculate daily thermal time (degree days)
 def calculate_thermal_time(T_min, T_max, T_base):
     T_min = max(T_min,0)
@@ -85,13 +91,13 @@ for file in os.listdir(path):
     dry_matter['Cohort'] = dry_matter['Cohort'].convert_dtypes(convert_integer=True)
     dry_matter['Leaf Number'] = dry_matter['Leaf Number'].convert_dtypes(convert_integer=True)
 
-    LAI_z = pd.DataFrame({'Level':[int()],'Height':[float()],'LAI':[float()]})
+    LAI_z = pd.DataFrame({'Level':[],'Height':[],'LAI':[]})
     LAI_z['Level'] = LAI_z['Level'].convert_dtypes(convert_integer=True)
 
-    Photosynthesis = pd.DataFrame({'Level (z)':[int()]f:[float()]})
-    #https://stackoverflow.com/questions/24290495/constructing-3d-pandas-dataframe
+    Photosynthesis = pd.DataFrame({'Level (z)':[],'Qp':[]})
     Photosynthesis['Level (z)'] = Photosynthesis['Level (z)'].convert_dtypes(convert_integer=True)
-    
+    Photosynthesis['Qp'] = Photosynthesis['Qp'].astype(dtype=float64)
+
     ### Tiller and Leaf Growth Submodel ###
     #Initialising Variables
     rate_of_change_of_daylength_at_emergence = 0
@@ -237,11 +243,35 @@ for file in os.listdir(path):
         #     root_growth.loc[index]
 
         ## Light interception and photosynthesis submodel ###
+        for i in LAI_z['Level']:
+            Photosynthesis.loc[i,'Level (z)'] = i
+            H = 0
+            R = 0
+            for j in PAR_data.loc[julian_day]:
+                #Counting number of daylight hours
+                if j != 0:
+                    H += 1
+                #Qp is the intensity of PAR at a given layer
+                if LAI_z.loc[i-1,'Level'] == 0:
+                    Qp = j
+                else:
+                    Qp = ((j*k)/(1-m))*exp((-k)*(LAI_z.loc[i-1,'LAI']))
+                #r_s is the stomatal resistance
+                r_s = 1.56 * 75(1+(100/Qp))#*(1-0.3*D) is usually included
+                #where D is the vapour pressure deficity however this crop is considered to be free from water stress
+                #r_p is the total physical resistance
+                r_p = r_a + r_s + r_m
+                #P_max is hte maximum photosynthesis rate
+                P_max = 0.995*(C_a/r_p)
+                #I do not have hourly temperature but I will assume it follows a trigonometric pattern between peaks
+                #with max temp at 13:00 and min temp in hour last hour without sunlight
+                if j.__index__
+                #P_m is the temperature-dependent maximum photosynthetic rate
+                P_m = (0.044*6*(10**9)*)
+                #R is the Total respiration in each day
+                R += 0.65*grc*
+        print(Photosynthesis)
 
-        print(Qp_z)
-        Photosynthesis = pd.DataFrame({'Level (z)':[0]'Qp_0':PAR_data.loc[julian_day-1].values[1:]})
-        # for i in LAI_z['Level']:
-        #     Qp_z.insert(i,f'Qp_{i}',Qp_z['Qp_0'].apply(func=(lambda x: ((x*k)/(1-m))*exp(-k*LAI_z['LAI'].values[i]))))
     print(file)
     print(LAI_z)    
     print(dry_matter)       

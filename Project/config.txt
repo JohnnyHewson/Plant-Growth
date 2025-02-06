@@ -16,7 +16,7 @@ leaf_transmission_coefficient,0.10
 Photosynthesis
 photosynthetic_efficiency,0.009
 ambient_co2_concentration,600
-boundary_layer_resistance,30
+crop_boundary_layer_resistance,30
 mesophyll_resistance,400
 activation_energy_of_the_electron_transport_system,14200
 denaturation_energy_of_the_electron_transport_system,47000
