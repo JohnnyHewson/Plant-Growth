@@ -27,19 +27,19 @@ with open(configdir, 'r') as config_file:
                 C_a = float(line.strip().split(',')[1])
 
 
-# Leaf data from the paper (Table 1)
+#Leaf data from the paper (Table 1)
 leaf_data = pd.DataFrame({"Lamina Length":[125,125,125,125,125,125,245,275,310,350,395,445],
                           "Lamina Width":[6,6,6,6,6,6,11,13,15,15,15,15],
                           "Sheath Length":[0,0,0,0,0,0,120,125,125,135,145,155],
                           "Max Leaf Area":[653,653,653,653,653,979,1797,2322,3164,3481,3988,4560]})
 
-path = os.path.join(project_path, 'Data', 'Processed', 'Thermal Time')
+path = os.path.join(project_path,'Data','Processed','Thermal Time')
 
 temp_data = pd.read_csv(os.path.join(project_path, 'Data', 'Raw', 'Temperature 1978-1981.csv'))
 temp_data['Date'] = pd.to_datetime(temp_data['Date'])
 temp_data = temp_data.rename(columns={'Min_Temp':'Min Temp','Max_Temp':'Max Temp','Mean_Temp':'Mean Temp'})
 PAR_data = pd.read_csv(os.path.join(project_path, 'Data', 'Raw', 'Average Hourly PAR.csv'),index_col=0,header=0)
-print(PAR_data)
+
 # Function to calculate daily thermal time (degree days)
 def calculate_thermal_time(T_min, T_max, T_base):
     T_min = max(T_min,0)
@@ -91,7 +91,7 @@ for file in os.listdir(path):
     dry_matter['Cohort'] = dry_matter['Cohort'].convert_dtypes(convert_integer=True)
     dry_matter['Leaf Number'] = dry_matter['Leaf Number'].convert_dtypes(convert_integer=True)
 
-    LAI_z = pd.DataFrame({'Level':[],'Height':[],'LAI':[]})
+    LAI_z = pd.DataFrame({'Level':[0],'Height':[0],'LAI':[0]})
     LAI_z['Level'] = LAI_z['Level'].convert_dtypes(convert_integer=True)
 
     Photosynthesis = pd.DataFrame({'Level (z)':[],'Qp':[]})
@@ -112,7 +112,7 @@ for file in os.listdir(path):
     A=825
     alpha = 1.46
     beta = 2.24
-    print(plant_data)
+
     for index,row in plant_data.iterrows():
         julian_day = row['Date'].timetuple().tm_yday
         if row['Stage'] == 'Seeding':
@@ -242,36 +242,47 @@ for file in os.listdir(path):
         # else:
         #     root_growth.loc[index]
 
-        # ## Light interception and photosynthesis submodel ###
-        # for i in LAI_z['Level']:
-        #     Photosynthesis.loc[i,'Level (z)'] = i
-        #     H = 0
-        #     R = 0
-        #     for j in PAR_data.loc[julian_day]:
-        #         #Counting number of daylight hours
-        #         if j != 0:
-        #             H += 1
-        #         #Qp is the intensity of PAR at a given layer
-        #         if LAI_z.loc[i-1,'Level'] == 0:
-        #             Qp = j
-        #         else:
-        #             Qp = ((j*k)/(1-m))*exp((-k)*(LAI_z.loc[i-1,'LAI']))
-        #         #r_s is the stomatal resistance
-        #         r_s = 1.56 * 75(1+(100/Qp))#*(1-0.3*D) is usually included
-        #         #where D is the vapour pressure deficity however this crop is considered to be free from water stress
-        #         #r_p is the total physical resistance
-        #         r_p = r_a + r_s + r_m
-        #         #P_max is hte maximum photosynthesis rate
-        #         P_max = 0.995*(C_a/r_p)
-        #         #I do not have hourly temperature but I will assume it follows a trigonometric pattern between peaks
-        #         #with max temp at 13:00 and min temp in hour last hour without sunlight
-        #         if  PAR_data.loc[julian_day].rfind(0,0,13)-1 <= j.__index__ and j.__index__ <= 13:
-        #             T_h = row['Max Temp']*sin(((j.__index__-1)*pi)/24)
-        #         #P_m is the temperature-dependent maximum photosynthetic rate
-        #         P_m = (0.044*6*(10**9)*)
-        #         #R is the Total respiration in each day
-        #         R += 0.65*grc*
-        # print(Photosynthesis)
+        ## Light interception and photosynthesis submodel ###
+        for i in LAI_z['Level']:
+            Photosynthesis.loc[i,'Level (z)'] = i
+            H = 0
+            R = 0
+            for j in PAR_data.loc[julian_day]:
+                #Counting number of daylight hours
+                if j != 0:
+                    H += 1
+                #Qp is the intensity of PAR at a given layer
+                print(LAI_z)
+                print(LAI_z.loc[i-1,'Level'])
+                try:
+                    if LAI_z.loc[i-1,'Level'] != 0:
+                        Qp = ((Qp*k)/(1-m))*exp((-k)*(LAI_z.loc[i-1,'LAI']))
+                    else:
+                        Qp = j
+                except NameError:
+                    if LAI_z.loc[i-1,'Level'] == 0:
+                        Qp = j
+                #r_s is the stomatal resistance
+                r_s = 1.56 * 75(1+(100/float(Qp))) #*(1-0.3*D) is usually included
+                #where D is the vapour pressure deficity however this crop is considered to be free from water stress
+                #r_p is the total physical resistance
+                r_p = r_a + r_s + r_m
+                #P_max is hte maximum photosynthesis rate
+                P_max = 0.995*(C_a/r_p)
+                #I do not have hourly temperature but I will assume it follows a trigonometric pattern between peaks
+                #with max temp at 13:00 and min temp in hour last hour without sunlight
+                if j.__index__ < (PAR_data.loc[julian_day].rfind(0,0,13)-1):
+                    T_h = ((plant_data.loc[index-1,'Max Temp']-row['Min Temp'])/2)*cos(((j.__index__-12)*pi)/(24-(13-(PAR_data.loc[julian_day].rfind(0,0,13)-1)))) + ((plant_data.loc[index-1,'Max Temp']+row['Min Temp'])/2)
+                elif (PAR_data.loc[julian_day].rfind(0,0,13)-1) <= j.__index__ and j.__index__ <= 13:
+                    T_h = ((row['Max Temp']-row['Min Temp'])/2)*sin(((j.__index__-0.5)*pi)/(13-(PAR_data.loc[julian_day].rfind(0,0,13)-1))) + ((row['Max Temp']+row['Min Temp'])/2)
+                else:
+                    T_h = ((row['Max Temp']-plant_data.loc[index+1,'Min Temp'])/2)*cos(((j.__index__-12)*pi)/(24-(13-(PAR_data.loc[julian_day].rfind(0,0,13)-1)))) + ((row['Max Temp']+plant_data.loc[index+1,'Min Temp'])/2)
+                print(T_h)
+                # #P_m is the temperature-dependent maximum photosynthetic rate
+                # P_m = (0.044*6*(10**9)*)
+                # #R is the Total respiration in each day
+                # R += 0.65*grc*
+        print(Photosynthesis)
         print(dry_matter)
         
         ###Testing number of tillers grown###
