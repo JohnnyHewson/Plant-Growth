@@ -67,6 +67,21 @@ def calculate_thermal_time(T_min, T_max, T_base):
             T_t += 0
     return max((1 / 8) * T_t, 0)  # Degree Celsius Days
 
+def calculate_vernalization(T_min,T_max):
+        V_eff = 0
+        for r in range(1, 9):
+            f_r = (1 / 2) * (1 + cos((90 / 8) * (2 * r - 1) * pi / 180))
+            T_H = max(T_min + f_r * (T_max - T_min), 0)
+            if -4 <= T_H < 3:
+                V_eff += (T_H + 4) / 7
+            elif 3 <= T_H <= 10:
+                V_eff += 1
+            elif 10 < T_H <= 17:
+                V_eff += (17 - T_H) / 7
+            else:
+                V_eff += 0
+        return (1/8)*V_eff
+
 # Latitude input (can be modified as needed)
 latitude = 51.81 * pi / 180  # Rothamsted
 
@@ -120,25 +135,10 @@ for index, row in stage_timings.iterrows():
         else:
             FP = 1
 
-        # Calculate vernalization (VDD)
-        V_eff = 0
-        for r in range(1, 9):
-            f_r = (1 / 2) * (1 + cos((90 / 8) * (2 * r - 1) * pi / 180))
-            T_H = max(T_min + f_r * (T_max - T_min), 0)
-            if -4 <= T_H < 3:
-                V_eff += (T_H + 4) / 7
-            elif 3 <= T_H <= 10:
-                V_eff += 1
-            elif 10 < T_H <= 17:
-                V_eff += (17 - T_H) / 7
-            else:
-                V_eff += 0
-        
-        VDD += (1/8)*V_eff
-
+        # Calculate vernalization factor (FV)       
+        VDD += calculate_vernalization(T_min,T_max)
         if T_max > 30:
             VDD *= 0.5
-
         if current_stage_index > 0:
             FV = min(max((VDD-V_base)/(V_sat-V_base), 0), 1)
         else:
