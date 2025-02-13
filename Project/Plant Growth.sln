@@ -9,6 +9,8 @@ Project("{888888A0-9F3D-457C-B088-3A5042F75D52}") = "Thermal Time", "Scripts\The
 EndProject
 Project("{888888A0-9F3D-457C-B088-3A5042F75D52}") = "Tiller and Leaf Growth", "Scripts\Tiller and Leaf Growth\Tiller and Leaf Growth.pyproj", "{99D5CADD-A299-4FCB-AC62-B5715E65B1C3}"
 EndProject
+Project("{888888A0-9F3D-457C-B088-3A5042F75D52}") = "DataCollection", "Scripts\DataCollection\DataCollection.pyproj", "{A78247B5-C4C3-426D-8020-C121D2A51D40}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +23,8 @@ Global
 		{D3BC5189-DEEB-4494-8EF8-FD580563E059}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{99D5CADD-A299-4FCB-AC62-B5715E65B1C3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{99D5CADD-A299-4FCB-AC62-B5715E65B1C3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A78247B5-C4C3-426D-8020-C121D2A51D40}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A78247B5-C4C3-426D-8020-C121D2A51D40}.Release|Any CPU.ActiveCfg = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

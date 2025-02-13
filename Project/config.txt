@@ -1,4 +1,5 @@
 Latitude,51.81
+Longitude,-0.36
 Phenological Development
 Seeding,1,148
 Emergence,1,284
