@@ -93,10 +93,13 @@ for file in os.listdir(path):
 
     LAI_z = pd.DataFrame({'Level':[0],'Height':[0],'LAI':[0]})
     LAI_z['Level'] = LAI_z['Level'].convert_dtypes(convert_integer=True)
+    LAI_z['LAI'] = LAI_z['LAI'].astype(dtype=float64)
 
     Photosynthesis = pd.DataFrame({'Level (z)':[],'Qp':[]})
     Photosynthesis['Level (z)'] = Photosynthesis['Level (z)'].convert_dtypes(convert_integer=True)
     Photosynthesis['Qp'] = Photosynthesis['Qp'].astype(dtype=float64)
+
+    hourly_temp = pd.DataFrame()
 
     ### Tiller and Leaf Growth Submodel ###
     #Initialising Variables
@@ -219,13 +222,15 @@ for file in os.listdir(path):
                 i+=1
         #Leaf Area Index
 
-        level = 0
-        for leaf in dry_matter['Leaf Number'].dropna():
-            LAI_z.loc[level,'Level'] = level + 1
+        level = 1
+        for leaf in dry_matter['Leaf Number'].values.dropna():
+            LAI_z.loc[level,'Level'] = level
             LAI_z.loc[level,'Height'] = round(leaf_data.loc[leaf-1,'Sheath Length'] * 1e-3 * 250, 8)
-            LAI_z.loc[level,'LAI'] = round((0 if level == 0 else LAI_z.loc[level-1,'LAI'])+dry_matter.loc[leaf-1,'Leaf Active Area'] * 1e-6 * 250, 8)
+            LAI_z.loc[level,'LAI'] = round(LAI_z.loc[level-1,'LAI']+dry_matter.loc[leaf-1,'Leaf Active Area'] * 1e-6 * 250, 8)
 
             if leaf_data.loc[leaf-1,'Sheath Length'] < leaf_data.loc[leaf,'Sheath Length']:
+                level += 1
+            elif level == 0:
                 level += 1
                 
         #         ### Root Growth Submodel ###
@@ -247,43 +252,58 @@ for file in os.listdir(path):
             Photosynthesis.loc[i,'Level (z)'] = i
             H = 0
             R = 0
+            hour = 0
+            sunrise = 0
+            for j in PAR_data.loc[julian_day]:
+                if j!= 0 and sunrise == 0:
+                    sunrise = hour
+                elif j==0 and sunrise != 0:
+                    sunset = hour
+                else:
+                    hour += 1
+            hour = 0
             for j in PAR_data.loc[julian_day]:
                 #Counting number of daylight hours
                 if j != 0:
                     H += 1
                 #Qp is the intensity of PAR at a given layer
-                print(LAI_z)
-                print(LAI_z.loc[i-1,'Level'])
                 try:
-                    if LAI_z.loc[i-1,'Level'] != 0:
+                    if LAI_z.loc[i,'Level'] != 0:
                         Qp = ((Qp*k)/(1-m))*exp((-k)*(LAI_z.loc[i-1,'LAI']))
                     else:
                         Qp = j
-                except NameError:
-                    if LAI_z.loc[i-1,'Level'] == 0:
+                except NameError:                 
+                    if LAI_z.loc[i,'Level'] == 0:
                         Qp = j
-                #r_s is the stomatal resistance
-                r_s = 1.56 * 75(1+(100/float(Qp))) #*(1-0.3*D) is usually included
-                #where D is the vapour pressure deficity however this crop is considered to be free from water stress
-                #r_p is the total physical resistance
-                r_p = r_a + r_s + r_m
-                #P_max is hte maximum photosynthesis rate
-                P_max = 0.995*(C_a/r_p)
-                #I do not have hourly temperature but I will assume it follows a trigonometric pattern between peaks
-                #with max temp at 13:00 and min temp in hour last hour without sunlight
-                if j.__index__ < (PAR_data.loc[julian_day].rfind(0,0,13)-1):
-                    T_h = ((plant_data.loc[index-1,'Max Temp']-row['Min Temp'])/2)*cos(((j.__index__-12)*pi)/(24-(13-(PAR_data.loc[julian_day].rfind(0,0,13)-1)))) + ((plant_data.loc[index-1,'Max Temp']+row['Min Temp'])/2)
-                elif (PAR_data.loc[julian_day].rfind(0,0,13)-1) <= j.__index__ and j.__index__ <= 13:
-                    T_h = ((row['Max Temp']-row['Min Temp'])/2)*sin(((j.__index__-0.5)*pi)/(13-(PAR_data.loc[julian_day].rfind(0,0,13)-1))) + ((row['Max Temp']+row['Min Temp'])/2)
+                if Qp != 0:
+                    #r_s is the stomatal resistance
+                    r_s = 1.56 * 75*(1+(100/Qp)) #*(1-0.3*D) is usually included
+                    #where D is the vapour pressure deficity however this crop is considered to be free from water stress
+                    #r_p is the total physical resistance
+                    r_p = r_a + r_s + r_m
+                    #P_max is hte maximum photosynthesis rate
+                    P_max = 0.995*(C_a/r_p)
+                    #I do not have hourly temperature but I will assume it follows a trigonometric pattern between peaks
+                    #with max temp at 13:00 and min temp in hour last hour without sunlight
                 else:
-                    T_h = ((row['Max Temp']-plant_data.loc[index+1,'Min Temp'])/2)*cos(((j.__index__-12)*pi)/(24-(13-(PAR_data.loc[julian_day].rfind(0,0,13)-1)))) + ((row['Max Temp']+plant_data.loc[index+1,'Min Temp'])/2)
-                print(T_h)
+                    P_max = 0
+                if hour < sunrise:
+                    T_h = ((plant_data.loc[julian_day-1,'Max Temp']-row['Min Temp'])/2)*cos(((hour-12)*pi)/(24-(13-sunrise))) + ((plant_data.loc[julian_day-1,'Max Temp']+row['Min Temp'])/2)
+                elif sunrise <= hour and hour <= 13:
+                    T_h = ((row['Max Temp']-row['Min Temp'])/2)*sin(((hour-0.5)*pi)/(13-sunrise)) + ((row['Max Temp']+row['Min Temp'])/2)
+                else:
+                    T_h = ((row['Max Temp']-plant_data.loc[julian_day+1,'Min Temp'])/2)*cos(((hour-12)*pi)/(24-(13-sunrise))) + ((row['Max Temp']+plant_data.loc[julian_day+1,'Min Temp'])/2)
+                #print(f"{hour}:{T_h}")
+                hourly_temp.loc[julian_day,hour] = T_h
                 # #P_m is the temperature-dependent maximum photosynthetic rate
                 # P_m = (0.044*6*(10**9)*)
                 # #R is the Total respiration in each day
                 # R += 0.65*grc*
+
+                hour += 1
         print(Photosynthesis)
         print(dry_matter)
+        print(hourly_temp)
         
         ###Testing number of tillers grown###
         if row['Stage'] == 'Double Ridge':

@@ -23,12 +23,12 @@ end_yyyymmdd = int(f"{today.year}{today.month if len(str(today.month)) == 2 else
 
 ###Collect Data###
 #Hourly Data (Photosynthetically Active Radiation and Temperature at 2 Metres)
-start_year = 2001
+hourly_start_year = 2001
 start_time = time.perf_counter()
 while True:
     attempt_start = time.perf_counter()
-
-    start_date = datetime.datetime(start_year,1,1)
+    print(f"Collecting hourly PAR and temperature data at ({latitude},{longitude}) from {hourly_start_year} to now")
+    start_date = datetime.datetime(hourly_start_year,1,1)
     start_yyyymmdd = int(f"{start_date.year}{start_date.month if len(str(start_date.month)) == 2 else f'0{start_date.month}'}{start_date.day if len(str(start_date.day)) == 2 else f'0{start_date.day}'}")
     try:
         base_url = r"https://power.larc.nasa.gov/api/temporal/hourly/point?parameters=ALLSKY_SFC_PAR_TOT,T2M&community=RE&longitude={longitude}&latitude={latitude}&start="+f"{start_yyyymmdd.real}&end={end_yyyymmdd.real}"+r"&format=CSV&header=false&time-standard=utc"
@@ -41,24 +41,22 @@ while True:
         if response.ok is False:
             raise ConnectTimeout
     except ConnectTimeout:
-        start_year += 1
-        print(f"Connection timed out after {time.perf_counter()-attempt_start} seconds\nRetrying starting from {start_year}")
+        hourly_start_year += 1
+        print(f"Connection timed out after {time.perf_counter()-attempt_start} seconds\nRetrying starting from {hourly_start_year}")
     else:
         print(f"Hourly Data Collected in {time.perf_counter()-start_time} seconds")
         break
 
 content = response.content.decode('utf-8').splitlines()
-
+print("Sorting hourly data...")
 hourly = pd.DataFrame((row.split(',') for row in content[1:]),columns=content[0].split(','))
 hourly['ALLSKY_SFC_PAR_TOT'] = pd.to_numeric(hourly['ALLSKY_SFC_PAR_TOT'], errors='coerce')
 hourly['T2M'] = pd.to_numeric(hourly['T2M'], errors='coerce')
-hourly['Date'] = hourly['YEAR']+'-'+hourly['MO']+'-'+hourly['DY']+' '+hourly['HR']+':00:00'
+hourly['Date'] = hourly['YEAR']+'-'+hourly['MO']+'-'+hourly['DY']
 hourly['Date'] = pd.to_datetime(hourly['Date'])
 hourly.drop(columns=['YEAR','MO','DY'],inplace=True)
 for index,row in hourly.iterrows():
     hourly.loc[index,'JDay'] = row['Date'].timetuple().tm_yday
-    if row['ALLSKY_SFC_PAR_TOT'] > 0 and row['Date'].hour < 4:
-        print(row['Date'])
 colnames=list(hourly.columns[:-2].values)
 colnames.insert(0,'Date')
 colnames.insert(1,'JDay')
@@ -66,12 +64,12 @@ hourly = hourly.reindex(columns=colnames)
 hourly = hourly.rename(columns={'ALLSKY_SFC_PAR_TOT':'PAR','T2M':'Temp'})
 
 #Daily Data (Daily Minimum Temperautre and Daily Maximum Temperature)
-start_year = 1981
+daily_start_year = 1981
 start_time = time.perf_counter()
 while True:
     attempt_start = time.perf_counter()
-    
-    start_date = datetime.datetime(start_year,1,1)
+    print(f"Collecting daily minimum and maximum temperature data at ({latitude},{longitude}) from {daily_start_year} to now")
+    start_date = datetime.datetime(daily_start_year,1,1)
     start_yyyymmdd = int(f"{start_date.year}{start_date.month if len(str(start_date.month)) == 2 else f'0{start_date.month}'}{start_date.day if len(str(start_date.day)) == 2 else f'0{start_date.day}'}")
     try:
         base_url = r"https://power.larc.nasa.gov/api/temporal/daily/point?parameters=T2M_MIN,T2M_MAX&community=RE&longitude={longitude}&latitude={latitude}&start="+f"{start_yyyymmdd.real}&end={end_yyyymmdd.real}"+r"&format=CSV&header=false&time-standard=utc"
@@ -84,14 +82,14 @@ while True:
         if response.ok is False:
             raise ConnectTimeout
     except ConnectTimeout:
-        start_year += 1
-        print(f"Connection timed out after {time.perf_counter()-attempt_start} seconds\nRetrying starting from {start_year}")
+        daily_start_year += 1
+        print(f"Connection timed out after {time.perf_counter()-attempt_start} seconds\nRetrying starting from {daily_start_year}")
     else:
         print(f"Daily Data Collected in {time.perf_counter()-start_time} seconds")
         break
 
 content = response.content.decode('utf-8').splitlines()
-
+print("Sorting daily data...")
 daily = pd.DataFrame((row.split(',') for row in content[1:]),columns=content[0].split(','))
 daily['T2M_MIN'] = pd.to_numeric(daily['T2M_MIN'], errors='coerce')
 daily['T2M_MAX'] = pd.to_numeric(daily['T2M_MAX'], errors='coerce')
@@ -105,6 +103,19 @@ colnames.insert(0,'Date')
 colnames.insert(1,'JDay')
 daily = daily.reindex(columns=colnames)
 daily = daily.rename(columns={'T2M_MIN':'Min Temp','T2M_MAX':'Max Temp'})
+
+#Test if there is any inconsistencies
+i=0
+for index,row in daily.iterrows():
+    if row['Date'] != hourly.loc[24*i,'Date']:
+        continue
+    if row['Min Temp'] == min(hourly.loc[24*(i):24*(i+1),'Temp']) or row['Max Temp'] == max(hourly.loc[24*(i):24*(i+1),'Temp']):
+        continue
+    print(row['Date'])
+    print(f"Daily Min Temp: {row['Min Temp']}|||Daily Max Temp: {row['Max Temp']}")
+    print(f"Minimum of daily hourly temp: {min(hourly.loc[24*(i):24*(i+1),'Temp'])}|||Max of daily hourly temp: {max(hourly.loc[24*(i):24*(i+1),'Temp'])}")
+    print("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
+    i+=1
 
 ###Process Data###
 #PAR
@@ -123,11 +134,11 @@ Average_Daily_Min_Temp = daily[daily['Min Temp'] != float(-999)].groupby('JDay',
 #Maximum Temperature
 Average_Daily_Max_Temp = daily[daily['Max Temp'] != float(-999)].groupby('JDay', as_index=True)['Max Temp'].mean()
 
-###Save Data
-processed_data_path = os.path.join(project_path,'Data','Processed','Average Conditions')
-Average_Hourly_PAR.to_csv(os.path.join(processed_data_path,'Average Hourly PAR'+'.csv'),index=True,header=True)
-Average_Hourly_Temp.to_csv(os.path.join(processed_data_path,'Average Hourly Temperature'+'.csv'),index=True,header=True)
-Average_Daily_Min_Temp.to_csv(os.path.join(processed_data_path,'Average Daily Min Temperature'+'.csv'),index=True,header=True)
-Average_Daily_Max_Temp.to_csv(os.path.join(processed_data_path,'Average Daily Max Temperature'+'.csv'),index=True,header=True)
+# ###Save Data
+# processed_data_path = os.path.join(project_path,'Data','Processed','Average Conditions')
+# Average_Hourly_PAR.to_csv(os.path.join(processed_data_path,'Average Hourly PAR'+'.csv'),index=True,header=True)
+# Average_Hourly_Temp.to_csv(os.path.join(processed_data_path,'Average Hourly Temperature'+'.csv'),index=True,header=True)
+# Average_Daily_Min_Temp.to_csv(os.path.join(processed_data_path,'Average Daily Min Temperature'+'.csv'),index=True,header=True)
+# Average_Daily_Max_Temp.to_csv(os.path.join(processed_data_path,'Average Daily Max Temperature'+'.csv'),index=True,header=True)
 
-print(f"Data saved to {processed_data_path}")
+# print(f"Data saved to {processed_data_path}")
