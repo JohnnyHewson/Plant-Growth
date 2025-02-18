@@ -25,6 +25,18 @@ with open(configdir, 'r') as config_file:
                 r_m = float(line.strip().split(',')[1])
             elif line[:line.index(',')] == 'ambient_co2_concentration':
                 C_a = float(line.strip().split(',')[1])
+            elif line[:line.index(',')] == 'activation_energy_of_the_electron_transport_system':
+                dH_1 = float(line.strip().split(',')[1])
+            elif line[:line.index(',')] == 'denaturation_energy_of_the_electron_transport_system':
+                dH_2 = float(line.strip().split(',')[1])
+            elif line[:line.index(',')] == 'entropy_change_on_denaturation_of_the_electron_transport_system':
+                dS = float(line.strip().split(',')[1])
+            elif line[:line.index(',')] == 'growth_respiration_coefficient':
+                grc = float(line.strip().split(',')[1])
+            elif line[:line.index(',')] == 'maintenance_respiration_coefficient_emerge_to_anthesis':
+                mrc_e2a = float(line.strip().split(',')[1])
+            elif line[:line.index(',')] == 'maintenance_respiration_coefficient_anthesis_to_maturity':
+                mrc_a2m = float(line.strip().split(',')[1])
 
 
 #Leaf data from the paper (Table 1)
@@ -232,22 +244,9 @@ for file in os.listdir(path):
                 level += 1
             elif level == 0:
                 level += 1
-                
-        #         ### Root Growth Submodel ###
-        # root_growth = pd.DataFrame({'Layer':[], 'Length':[], 'Weight':[]})
-        # seminal_weight = 1.5 * (10**-4)
-        # lateral_weight = 4 * (10**-5)
-        # TR = min(0.2 + 0.12 * row['Mean Temp'],0)
-        # if 'Seminal' in root_growth['Layer'].values[-1]:
-        #     if index > 0:
-        #         length = TR + root_growth['Length'].values(-1)
-        #     else: 
-        #         length = TR
-        #     root_growth.loc[index] = ['Seminal',length,seminal_weight*length]
-        # else:
-        #     root_growth.loc[index]
 
         ## Light interception and photosynthesis submodel ###
+        P_g_h = pd.Series(0,range(0,24))
         for i in LAI_z['Level']:
             Photosynthesis.loc[i,'Level (z)'] = i
             H = 0
@@ -293,18 +292,50 @@ for file in os.listdir(path):
                     T_h = ((row['Max Temp']-row['Min Temp'])/2)*sin(((hour-0.5)*pi)/(13-sunrise)) + ((row['Max Temp']+row['Min Temp'])/2)
                 else:
                     T_h = ((row['Max Temp']-plant_data.loc[julian_day+1,'Min Temp'])/2)*cos(((hour-12)*pi)/(24-(13-sunrise))) + ((row['Max Temp']+plant_data.loc[julian_day+1,'Min Temp'])/2)
-                #print(f"{hour}:{T_h}")
                 hourly_temp.loc[julian_day,hour] = T_h
-                # #P_m is the temperature-dependent maximum photosynthetic rate
-                # P_m = (0.044*6*(10**9)*)
-                # #R is the Total respiration in each day
-                # R += 0.65*grc*
+                #P_g is summed of daylight hours
+                if Qp != 0:
+                    #P_m is the temperature-dependent maximum photosynthetic rate
+                    P_m = (0.044*6*(10**9)*(T_h+273.15)*exp((-1*dH_1)/(1.987*(T_h+273.15))))/(1+(exp((-1*dH_2)/(1.987*(T_h+273.15))))*(exp(dS/1.987)))
+                    #P_g is the rate of photosynthesis, this equation uses the temperature corrected quadratic equation
+                    P_g_a=(0.995/P_max)*((1/alpha*Qp)+(1/P_m))
+                    P_g_b=(-1*((1/alpha*Qp)+(1/P_m)+(1/P_max)))
+                    P_g_c=1
+                    #Taking positive P_g
+                    P_g = max((((-1*P_g_b)+(sqrt((P_g_b**2)-(4*P_g_a*P_g_c))))/(2*P_g_a)),(((-1*P_g_b)-(sqrt((P_g_b**2)-(4*P_g_a*P_g_c))))/(2*P_g_a)))
+                else:
+                    P_g = 0
+                #Summing P_g for each layer for daily gross total
+                P_g_h[hour]+=P_g
 
                 hour += 1
+        if row['Stage'] in ['Emergence','Double Ridge']:
+            mrc = mrc_e2a
+        elif row['Stage'] in ['Anthesis','Maturity']:
+            mrc = mrc_a2m
+        R = (0.65*grc*sum(P_g_h)) + weight*mrc*(2**(0.05*(row['Max Temp']+row['Min Temp'])))
+        try:
+            print(P_g_h)
+        except:
+            pass
         print(Photosynthesis)
         print(dry_matter)
-        print(hourly_temp)
         
+                        ### Root Growth Submodel ### Moved after the photosynthesis submodel because i think it makes more sense this way
+        #assimilate available is fraction from paper glossary * P_n(CH2O)
+        root_growth = pd.DataFrame({'Layer':[], 'Length':[], 'Weight':[]})
+        seminal_weight = 1.5 * (10**-4)
+        lateral_weight = 4 * (10**-5)
+        TR = min(0.2 + 0.12 * row['Mean Temp'],0)
+        if 'Seminal' in root_growth['Layer'].values[-1]:
+            if index > 0:
+                length = TR + root_growth['Length'].values(-1)
+            else: 
+                length = TR
+            root_growth.loc[index] = ['Seminal',length,seminal_weight*length]
+        else:
+            root_growth.loc[index]
+
         ###Testing number of tillers grown###
         if row['Stage'] == 'Double Ridge':
             raise KeyboardInterrupt
