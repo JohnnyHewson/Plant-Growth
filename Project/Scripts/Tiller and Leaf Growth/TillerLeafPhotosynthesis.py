@@ -324,8 +324,8 @@ for file in os.listdir(path):
                         ### Root Growth Submodel ### Moved after the photosynthesis submodel because i think it makes more sense this way
         #assimilate available is fraction from paper glossary * P_n(CH2O)
         root_growth = pd.DataFrame({'Layer':[], 'Length':[], 'Weight':[]})
-        seminal_weight = 1.5 * (10**-4)
-        lateral_weight = 4 * (10**-5)
+        seminal_weight = 1.5 * (10**(-4))
+        lateral_weight = 4 * (10**(-5))
         TR = min(0.2 + 0.12 * row['Mean Temp'],0)
         if 'Seminal' in root_growth['Layer'].values[-1]:
             if index > 0:
