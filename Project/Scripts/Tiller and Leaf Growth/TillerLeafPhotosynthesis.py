@@ -37,6 +37,12 @@ with open(configdir, 'r') as config_file:
                 mrc_e2a = float(line.strip().split(',')[1])
             elif line[:line.index(',')] == 'maintenance_respiration_coefficient_anthesis_to_maturity':
                 mrc_a2m = float(line.strip().split(',')[1])
+            elif line[:line.index(',')] == 'emergence_to_double_ridge':
+                assimDistE2DR = tuple(line.strip().split(',')[1:5])
+            elif line[:line.index(',')] == 'double_ridge_to_beginning_ear_growth':
+                assimDistDR2BEG = tuple(line.strip().split(',')[1:5])
+            elif line[:line.index(',')] == 'beginning_ear_growth_to_anthesis':
+                assimDistBEG2A = tuple(line.strip().split(',')[1:5])
 
 
 #Leaf data from the paper (Table 1)
@@ -113,6 +119,8 @@ for file in os.listdir(path):
 
     hourly_temp = pd.DataFrame()
 
+    Assimilate_Stage_Distribution = pd.DataFrame([assimDistE2DR,assimDistDR2BEG,assimDistBEG2A],columns=['Root','Leaves','Stems','Ears'],index=['assimDistE2DR','assimDistDR2BEG','assimDistBEG2A'])
+    print(Assimilate_Stage_Distribution)
     ### Tiller and Leaf Growth Submodel ###
     #Initialising Variables
     rate_of_change_of_daylength_at_emergence = 0
@@ -321,8 +329,14 @@ for file in os.listdir(path):
         print(Photosynthesis)
         print(dry_matter)
         
+                        ###Dry-matter partitioning and grain growth submodel###
+        netAssimilate = (0.65 * sum(P_g_h)) - R
+        if row['Stage'] == "emergence":
+            Assimilate_Distribution = Assimilate_Stage_Distribution['assimDistE2DR']
+
                         ### Root Growth Submodel ### Moved after the photosynthesis submodel because i think it makes more sense this way
-        #assimilate available is fraction from paper glossary * P_n(CH2O)
+        
+        root_assimilate = netAssimilate * Assimilate_Distribution['Root']
         root_growth = pd.DataFrame({'Layer':[], 'Length':[], 'Weight':[]})
         seminal_weight = 1.5 * (10**(-4))
         lateral_weight = 4 * (10**(-5))
