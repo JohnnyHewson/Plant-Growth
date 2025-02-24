@@ -118,11 +118,14 @@ for file in os.listdir(path):
     Photosynthesis['Qp'] = Photosynthesis['Qp'].astype(dtype=float64)
 
     hourly_temp = pd.DataFrame()
+    root_growth = pd.DataFrame({'Layer':[],'Specific Weight':[], 'Length':[], 'Total Weight':[]})
+    root_growth['Layer'] = root_growth['Layer'].astype(dtype=str)
 
     Assimilate_Stage_Distribution = pd.DataFrame([assimDistE2DR,assimDistDR2BEG,assimDistBEG2A],columns=['Root','Leaves','Stems','Ears'],index=['assimDistE2DR','assimDistDR2BEG','assimDistBEG2A'])
     print(Assimilate_Stage_Distribution)
     ### Tiller and Leaf Growth Submodel ###
     #Initialising Variables
+    weight = 0
     rate_of_change_of_daylength_at_emergence = 0
     new_tillers = 0
     new_leaves = 0
@@ -254,7 +257,7 @@ for file in os.listdir(path):
                 level += 1
 
         ## Light interception and photosynthesis submodel ###
-        P_g_h = pd.Series(0,range(0,24))
+        P_g_h = pd.Series(0,range(0,24)).astype(dtype=float64)
         for i in LAI_z['Level']:
             Photosynthesis.loc[i,'Level (z)'] = i
             H = 0
@@ -331,14 +334,17 @@ for file in os.listdir(path):
         
                         ###Dry-matter partitioning and grain growth submodel###
         netAssimilate = (0.65 * sum(P_g_h)) - R
-        if row['Stage'] == "emergence":
-            Assimilate_Distribution = Assimilate_Stage_Distribution['assimDistE2DR']
+        if row['Stage'] == "Emergence":
+            Assimilate_Distribution = Assimilate_Stage_Distribution.loc['assimDistE2DR']
 
                         ### Root Growth Submodel ### Moved after the photosynthesis submodel because i think it makes more sense this way
-        
-        root_assimilate = netAssimilate * Assimilate_Distribution['Root']
+        try:
+            root_assimilate = netAssimilate * Assimilate_Distribution['Root']
+            print("Root Assimilate:", root_assimilate)
+        except:
+            root_assimilate = 0
+            print(row['Stage'])
         TR = min(0.2 + 0.12 * row['Mean Temp'],0)
-        root_growth = pd.DataFrame({'Layer':[],'Specific Weight':[], 'Length':[], 'Total Weight':[]})
         if 'Seminal' not in root_growth['Layer'].values:
             root_growth.loc[0,['Layer','Specific Weight','Length','Total Weight']] = ['Seminal',4 * (10**(-5)),TR,min(5*((4 * (10**(-5)))*TR),root_assimilate)]
             #5* because 5 seminal roots
@@ -353,15 +359,11 @@ for file in os.listdir(path):
                         root_growth.loc[index2,['Layer','Specific Weight','Length','Total Weight']] = [f'Lateral order {index2}',1.5 * (10**(-4)),TR,min(5*((1.5 * (10**(-4)))*TR),root_assimilate)]
                         #5* because lateral for each seminal
                     else:
-                        root_growth.loc[index2,['Length','Total Weight']] += [TR,min(5*(row2['Specific Weight']*TR),(0.3 if root_growth.info###)*root_assimilate)]
-                        #0.3* because 30 percent of assimilate is retained in rach layer
+                        root_growth.loc[index2,['Length','Total Weight']] += [TR,min(5*(row2['Specific Weight']*TR),(0.3 if len(root_growth['Layer']) > index2 else 1)*root_assimilate)]
+                        #0.3* because 30 percent of assimilate is retained in each layer
                         root_assimilate *= 0.7
         root_weight = sum(root_growth['Total Weight'])
+        print(root_growth)
 
-        ###Testing number of tillers grown###
-        if row['Stage'] == 'Double Ridge':
-            raise KeyboardInterrupt
-
-    print(file)
     print(LAI_z)    
     print(dry_matter)       
