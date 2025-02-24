@@ -337,18 +337,26 @@ for file in os.listdir(path):
                         ### Root Growth Submodel ### Moved after the photosynthesis submodel because i think it makes more sense this way
         
         root_assimilate = netAssimilate * Assimilate_Distribution['Root']
-        root_growth = pd.DataFrame({'Layer':[], 'Length':[], 'Weight':[]})
-        seminal_weight = 1.5 * (10**(-4))
-        lateral_weight = 4 * (10**(-5))
         TR = min(0.2 + 0.12 * row['Mean Temp'],0)
-        if 'Seminal' in root_growth['Layer'].values[-1]:
-            if index > 0:
-                length = TR + root_growth['Length'].values(-1)
-            else: 
-                length = TR
-            root_growth.loc[index] = ['Seminal',length,seminal_weight*length]
+        root_growth = pd.DataFrame({'Layer':[],'Specific Weight':[], 'Length':[], 'Total Weight':[]})
+        if 'Seminal' not in root_growth['Layer'].values:
+            root_growth.loc[0,['Layer','Specific Weight','Length','Total Weight']] = ['Seminal',4 * (10**(-5)),TR,min(5*((4 * (10**(-5)))*TR),root_assimilate)]
+            #5* because 5 seminal roots
         else:
-            root_growth.loc[index]
+            while root_assimilate > 0:
+                for row2,index2 in root_growth.iterrows():
+                    if row2['Layer'] == 'Seminal':
+                        root_growth.loc[index2,['Length','Total Weight']] += [TR,min(5*(row2['Specific Weight']*TR),root_assimilate)]
+                        if row2['Specific Weight']*TR < root_assimilate:
+                            root_assimilate -= row2['Specific Weight']*TR
+                    elif 'Lateral' not in row2['Layer']:
+                        root_growth.loc[index2,['Layer','Specific Weight','Length','Total Weight']] = [f'Lateral order {index2}',1.5 * (10**(-4)),TR,min(5*((1.5 * (10**(-4)))*TR),root_assimilate)]
+                        #5* because lateral for each seminal
+                    else:
+                        root_growth.loc[index2,['Length','Total Weight']] += [TR,min(5*(row2['Specific Weight']*TR),(0.3 if root_growth.info###)*root_assimilate)]
+                        #0.3* because 30 percent of assimilate is retained in rach layer
+                        root_assimilate *= 0.7
+        root_weight = sum(root_growth['Total Weight'])
 
         ###Testing number of tillers grown###
         if row['Stage'] == 'Double Ridge':
