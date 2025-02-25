@@ -2,7 +2,7 @@ from numpy import float64
 import pandas as pd
 import datetime
 import os
-from math import isnan, pi, cos, radians, sin, sqrt, exp
+from math import isnan, pi, cos, radians, sin, sqrt, exp, trunc
 
 project_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..\\..'))
 
@@ -118,14 +118,15 @@ for file in os.listdir(path):
     Photosynthesis['Qp'] = Photosynthesis['Qp'].astype(dtype=float64)
 
     hourly_temp = pd.DataFrame()
-    root_growth = pd.DataFrame({'Layer':[],'Specific Weight':[], 'Length':[], 'Total Weight':[]})
-    root_growth['Layer'] = root_growth['Layer'].astype(dtype=str)
+    weightDistribution = pd.DataFrame([[0,0,0,0,0,0,0]],
+                                      columns=["Growth Respiration","Maintenance Respiration","Grain","Ears","Photosynthate Pool","Stems and Leaves","Roots"])
+    weightDistribution.index.name = "Jday"
 
-    Assimilate_Stage_Distribution = pd.DataFrame([assimDistE2DR,assimDistDR2BEG,assimDistBEG2A],columns=['Root','Leaves','Stems','Ears'],index=['assimDistE2DR','assimDistDR2BEG','assimDistBEG2A'])
-    print(Assimilate_Stage_Distribution)
+    Assimilate_Stage_Distribution = pd.DataFrame([(0,0,0,0),assimDistE2DR,assimDistDR2BEG,assimDistBEG2A,(0,0,0,1)],columns=['Root','Leaves','Stems','Ears'],
+                                                 index=['No Assimilate','Emergence','DR Pre Grain','DR Grain','Anthesis'],dtype=float64)
+
     ### Tiller and Leaf Growth Submodel ###
     #Initialising Variables
-    weight = 0
     rate_of_change_of_daylength_at_emergence = 0
     new_tillers = 0
     new_leaves = 0
@@ -134,6 +135,7 @@ for file in os.listdir(path):
     max_tillers = 0
     week_day = 0
     number_of_cohorts = 0
+    earGrowth = False
     #Constants for Tiller Death Proportion
     A=825
     alpha = 1.46
@@ -257,7 +259,7 @@ for file in os.listdir(path):
                 level += 1
 
         ## Light interception and photosynthesis submodel ###
-        P_g_h = pd.Series(0,range(0,24)).astype(dtype=float64)
+        P_g_h = pd.Series(0,range(0,24),dtype=float64)
         for i in LAI_z['Level']:
             Photosynthesis.loc[i,'Level (z)'] = i
             H = 0
@@ -318,13 +320,16 @@ for file in os.listdir(path):
                     P_g = 0
                 #Summing P_g for each layer for daily gross total
                 P_g_h[hour]+=P_g
-
                 hour += 1
+        P_g_h = P_g_h.divide(250) #Revert back to per plant basis
         if row['Stage'] in ['Emergence','Double Ridge']:
             mrc = mrc_e2a
         elif row['Stage'] in ['Anthesis','Maturity']:
             mrc = mrc_a2m
+        weight = sum(sum(weightDistribution.fillna(0).values))
+        print("Total Weight:", weight)
         R = (0.65*grc*sum(P_g_h)) + weight*mrc*(2**(0.05*(row['Max Temp']+row['Min Temp'])))
+        weightDistribution.loc[julian_day,['Maintenance Respiration','Growth Respiration']] = [(0.65*grc*sum(P_g_h)),weight*mrc*(2**(0.05*(row['Max Temp']+row['Min Temp'])))]
         try:
             print(P_g_h)
         except:
@@ -334,36 +339,38 @@ for file in os.listdir(path):
         
                         ###Dry-matter partitioning and grain growth submodel###
         netAssimilate = (0.65 * sum(P_g_h)) - R
-        if row['Stage'] == "Emergence":
-            Assimilate_Distribution = Assimilate_Stage_Distribution.loc['assimDistE2DR']
-
-                        ### Root Growth Submodel ### Moved after the photosynthesis submodel because i think it makes more sense this way
-        try:
-            root_assimilate = netAssimilate * Assimilate_Distribution['Root']
-            print("Root Assimilate:", root_assimilate)
-        except:
-            root_assimilate = 0
-            print(row['Stage'])
-        TR = min(0.2 + 0.12 * row['Mean Temp'],0)
-        if 'Seminal' not in root_growth['Layer'].values:
-            root_growth.loc[0,['Layer','Specific Weight','Length','Total Weight']] = ['Seminal',4 * (10**(-5)),TR,min(5*((4 * (10**(-5)))*TR),root_assimilate)]
-            #5* because 5 seminal roots
+        if row['Stage'] == "Double Ridge" and row['Stage Sum Degree Days'] >= 200:
+            earGrowth = True
+        if row['Stage'] == "Seeding":
+            Assimilate_Distribution = Assimilate_Stage_Distribution.loc['No Assimilate']
+        elif row['Stage'] == "Emergence":
+            Assimilate_Distribution = Assimilate_Stage_Distribution.loc['Emergence']
+        elif row['Stage'] == "Double Ridge":
+            if row['Stage Sum Degree Days'] >= 200:
+                Assimilate_Distribution = Assimilate_Stage_Distribution.loc['DR Pre Grain']
+            else:
+                Assimilate_Distribution = Assimilate_Stage_Distribution.loc['DR Grain']
+        elif row['Stage'] == "Anthesis":
+            Assimilate_Distribution = Assimilate_Stage_Distribution.loc['Anthesis']
         else:
-            while root_assimilate > 0:
-                for row2,index2 in root_growth.iterrows():
-                    if row2['Layer'] == 'Seminal':
-                        root_growth.loc[index2,['Length','Total Weight']] += [TR,min(5*(row2['Specific Weight']*TR),root_assimilate)]
-                        if row2['Specific Weight']*TR < root_assimilate:
-                            root_assimilate -= row2['Specific Weight']*TR
-                    elif 'Lateral' not in row2['Layer']:
-                        root_growth.loc[index2,['Layer','Specific Weight','Length','Total Weight']] = [f'Lateral order {index2}',1.5 * (10**(-4)),TR,min(5*((1.5 * (10**(-4)))*TR),root_assimilate)]
-                        #5* because lateral for each seminal
-                    else:
-                        root_growth.loc[index2,['Length','Total Weight']] += [TR,min(5*(row2['Specific Weight']*TR),(0.3 if len(root_growth['Layer']) > index2 else 1)*root_assimilate)]
-                        #0.3* because 30 percent of assimilate is retained in each layer
-                        root_assimilate *= 0.7
-        root_weight = sum(root_growth['Total Weight'])
-        print(root_growth)
+            print(row['Stage'], row['Stage Sum Degree Days'])
+            raise KeyboardInterrupt
 
+                        ### Root Growth Submodel ###
+        root_assimilate = netAssimilate * Assimilate_Distribution['Root']
+        TR = max(0.2 + 0.12 * row['Mean Temp'],0)
+        seminalSpecificWeight = 4 * (10**(-5))
+        lateralSpecificWeight = 1.5 * (10**(-4))
+        seminalAssimilate = TR * (5 * seminalSpecificWeight) #5 seminal roots
+        lateralAssimilate = max(root_assimilate - seminalAssimilate,0)
+        seminalExtension = TR*seminalAssimilate
+        lateralExtension = lateralAssimilate*lateralSpecificWeight
+        seminalWeight = seminalSpecificWeight*seminalExtension
+        lateralWeight = lateralSpecificWeight*lateralExtension
+        root_weight = seminalWeight + lateralWeight
+        weightDistribution.loc[julian_day,"Root"] = root_weight
+        print(julian_day)
+        print(weightDistribution)
+        
     print(LAI_z)    
     print(dry_matter)       

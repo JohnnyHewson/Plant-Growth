@@ -3,8 +3,6 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.11.35327.3
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{888888A0-9F3D-457C-B088-3A5042F75D52}") = "Plant Growth", "Scripts\Plant Growth\Plant Growth.pyproj", "{1759248A-9131-476E-A862-A9A49CE4B573}"
-EndProject
 Project("{888888A0-9F3D-457C-B088-3A5042F75D52}") = "Thermal Time", "Scripts\Thermal Time\Thermal Time.pyproj", "{D3BC5189-DEEB-4494-8EF8-FD580563E059}"
 EndProject
 Project("{888888A0-9F3D-457C-B088-3A5042F75D52}") = "Tiller and Leaf Growth", "Scripts\Tiller and Leaf Growth\Tiller and Leaf Growth.pyproj", "{99D5CADD-A299-4FCB-AC62-B5715E65B1C3}"
@@ -17,8 +15,6 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{1759248A-9131-476E-A862-A9A49CE4B573}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{1759248A-9131-476E-A862-A9A49CE4B573}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{D3BC5189-DEEB-4494-8EF8-FD580563E059}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{D3BC5189-DEEB-4494-8EF8-FD580563E059}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{99D5CADD-A299-4FCB-AC62-B5715E65B1C3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
