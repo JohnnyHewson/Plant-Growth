@@ -293,7 +293,7 @@ for file in os.listdir(path):
                     #where D is the vapour pressure deficity however this crop is considered to be free from water stress
                     #r_p is the total physical resistance
                     r_p = r_a + r_s + r_m
-                    #P_max is hte maximum photosynthesis rate
+                    #P_max is the maximum photosynthesis rate
                     P_max = 0.995*(C_a/r_p)
                     #I do not have hourly temperature but I will assume it follows a trigonometric pattern between peaks
                     #with max temp at 13:00 and min temp in hour last hour without sunlight
