@@ -1,0 +1,12 @@
+**TO DO:**
+- Fix Tiller and Leaf Growth Submodel
+  - Not getting intended number of Tillers
+- Check subsequent submodels by providing paper's data
+  - Possible sources of error that could come up:
+    - Quadractic equation for P_g (Photorespiration)
+      - Positive or Negative?
+    - > Ear growth occurs during the last 400 PTt °C days before anthesis (Page 375)
+      - Paper does not usually specify PTt/PVTt, is that only for stages and should other wise just stick to unaffected thermal time?
+    - >During the mature period grain does not increase in weight, but if daily net assimilate is negative it loses weight proportionately to the other plant parts (Page 375)
+      - Proportionately how?
+      - Negative Assimilate?
