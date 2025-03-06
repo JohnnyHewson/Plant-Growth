@@ -58,6 +58,19 @@ temp_data['Date'] = pd.to_datetime(temp_data['Date'])
 temp_data = temp_data.rename(columns={'Min_Temp':'Min Temp','Max_Temp':'Max Temp','Mean_Temp':'Mean Temp'})
 PAR_data = pd.read_csv(os.path.join(project_path, 'Data', 'Raw', 'Average Hourly PAR.csv'),index_col=0,header=0)
 
+#Overall Dataframe
+Results = pd.DataFrame(index = ['Top Weight, Anthesis (g/m^2)',
+                                'Top Weight, Maturity (g/m^2)',
+                                'Grain Yield (g/m^2)',
+                                'Harvest Index (%)',
+                                'No. of Grain per m^2 (10^3)',
+                                'No. of Ears per m^2',
+                                'No. Grains Per Ear',
+                                'Grain Weight (mg/grain)',
+                                'Grain Pool, Anthesis (g/m^2)',
+                                'Grain Pool, Maturity (g/m^2)',
+                                'Root Weight (g/m^2)'])
+
 # Function to calculate daily thermal time (degree days)
 def calculate_thermal_time(T_min, T_max, T_base):
     T_min = max(T_min,0)
@@ -98,11 +111,14 @@ def calc_RoCoDLatE(latitude, julian_day):
 
 #For testing i would recommend only have 1 file of plant data in the thermal time folder in the processed data folder
 for file in os.listdir(path):
+    plant_ID = file.split(' ')[0]
     plant_data = pd.read_csv(os.path.join(path,file))
     plant_data['Date'] = pd.to_datetime(plant_data['Date'])
     plant_data = plant_data.merge(temp_data, on='Date', how='outer')
     plant_data = plant_data.dropna().reset_index().drop(columns='index')
     
+    Results[plant_ID] = [0,0,0,0,0,0,0,0,0,0,0]
+    print(Results)
     #Setting up Dataframes
     dry_matter = pd.DataFrame({'Cohort':[int(0)],'#Tillers':[0],'N_n':[0],'Proportion Surviving':[0],
                                'Leaf Number':[int(0)],'Leaf Active Area':[0],'Stage':[""],'Rate of Leaf Growth':[float(0)],'Life Span':[0]})
@@ -136,6 +152,7 @@ for file in os.listdir(path):
     week_day = 0
     number_of_cohorts = 0
     earGrowth = False
+    assimilatePool = 0
     #Constants for Tiller Death Proportion
     A=825
     alpha = 1.46
@@ -314,7 +331,7 @@ for file in os.listdir(path):
                     P_g_a=(0.995/P_max)*((1/alpha*Qp)+(1/P_m))
                     P_g_b=(-1*((1/alpha*Qp)+(1/P_m)+(1/P_max)))
                     P_g_c=1
-                    #Taking positive P_g
+                    #Taking positive P_g ###assumption
                     P_g = max((((-1*P_g_b)+(sqrt((P_g_b**2)-(4*P_g_a*P_g_c))))/(2*P_g_a)),(((-1*P_g_b)-(sqrt((P_g_b**2)-(4*P_g_a*P_g_c))))/(2*P_g_a)))
                 else:
                     P_g = 0
@@ -352,9 +369,16 @@ for file in os.listdir(path):
                 Assimilate_Distribution = Assimilate_Stage_Distribution.loc['DR Grain']
         elif row['Stage'] == "Anthesis":
             Assimilate_Distribution = Assimilate_Stage_Distribution.loc['Anthesis']
-        else:
-            print(row['Stage'], row['Stage Sum Degree Days'])
-            raise KeyboardInterrupt
+            if assimilatePool == 0:
+                assimilatePool = 0.3 * sum(weightDistribution["Stems and Leaves"].fillna(0).values)
+            if row['Stage Sum Degree Days'] <= 55:
+                assimilatePool += Assimilate_Distribution['Grain'] * netAssimilate
+            elif row['Stage Sum Degree Days'] <= 295:
+                G_Max = ((0.045 * (row['Max Temp'] + row['Min Temp'])) / 2) + 0.4
+                weightDistribution.loc[julian_day,'Grain'] = G_Max if netAssimilate + assimilatePool > G_Max else netAssimilate + assimilatePool
+            elif row['Stage Sum Degree Days'] <= 350:
+                if netAssimilate < 0:
+                    weightDistribution.loc[julian_day,'Grain'] = netAssimilate
 
                         ### Root Growth Submodel ###
         root_assimilate = netAssimilate * Assimilate_Distribution['Root']
@@ -369,6 +393,19 @@ for file in os.listdir(path):
         lateralWeight = lateralSpecificWeight*lateralExtension
         root_weight = seminalWeight + lateralWeight
         weightDistribution.loc[julian_day,"Root"] = root_weight
+
+        #Results Dataframe Collection
+        if row['Stage'] == 'Anthesis':
+            if weight > Results.loc['Top Weight, Anthesis (g/m^2)',plant_ID]:
+                Results.loc['Top Weight, Anthesis (g/m^2)',plant_ID] = weight
+            if Results.loc['Grain Pool, Anthesis (g/m^2)',plant_ID] == 0:
+                Results.loc['Grain Pool, Anthesis (g/m^2)',plant_ID] = assimilatePool
+        elif row['Stage'] == 'Maturity':
+            if weight > Results.loc['Top Weight, Maturity (g/m^2)',plant_ID]:
+                Results.loc['Top Weight, Maturity (g/m^2)',plant_ID] = weight
+            if Results.loc['Grain Pool, Maturity (g/m^2)',plant_ID] == 0 and row['Stage Sum Degree Days'] > 55:
+                Results.loc['Grain Pool, Maturity (g/m^2)',plant_ID] = assimilatePool
+
         print(julian_day)
         print(weightDistribution)
         
