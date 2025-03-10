@@ -2,7 +2,7 @@ from numpy import float64
 import pandas as pd
 import datetime
 import os
-from math import isnan, pi, cos, radians, sin, sqrt, exp, trunc
+from math import pi, cos, radians, sin, sqrt, exp, trunc
 import matplotlib.pyplot as plt
 
 project_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..\\..'))
@@ -119,7 +119,7 @@ for file in os.listdir(path):
     plant_data = plant_data.dropna().reset_index().drop(columns='index')
     
     Results[plant_ID] = [0,0,0,0,0,0,0,0,0,0,0]
-    print(Results)
+
     #Setting up Dataframes
     dry_matter = pd.DataFrame({'Cohort':[int(0)],'#Tillers':[0],'N_n':[0],'Proportion Surviving':[0],
                                'Leaf Number':[int(0)],'Leaf Active Area':[0],'Stage':[""],'Rate of Leaf Growth':[float(0)],'Life Span':[0]})
@@ -159,14 +159,15 @@ for file in os.listdir(path):
     alpha = 1.46
     beta = 2.24
 
+
+    tillerData = []
     for index,row in plant_data.iterrows():
         julian_day = row['Date'].timetuple().tm_yday
+        
         if row['Stage'] == 'Seeding':
             continue
         elif row['Stage'] == 'Emergence':
-            #Offsetting Degree Days so that we have cumulative degree days from emergence onwards to calculate new leaf growth
-            if row['Stage Sum Degree Days'] == row['Daily Degree Days']:
-                row['Total Degree Days'] -= (row['Total Degree Days'] - row['Daily Degree Days'])
+            offset_total_thermal_time += row['Daily Degree Days']
 
             #Rate of new leaves
             if rate_of_change_of_daylength_at_emergence == 0:
@@ -175,10 +176,10 @@ for file in os.listdir(path):
                 phylochron_interval = 1/rate_of_leaf_appearance_per_degree_day
 
             #Growing first 3 leaves
-            if (row['Total Degree Days'] - successive_leaf_thermal_time) >= phylochron_interval:
+            if (offset_total_thermal_time - successive_leaf_thermal_time) >= phylochron_interval:
                 dry_matter.loc[new_leaves,'Leaf Number'] = new_leaves + 1
                 dry_matter.loc[new_leaves,['Leaf Active Area','Stage','Rate of Leaf Growth']] = [0,'Grow',leaf_data.loc[new_leaves,"Max Leaf Area"] * rate_of_leaf_appearance_per_degree_day]
-                successive_leaf_thermal_time = row['Total Degree Days']
+                successive_leaf_thermal_time = offset_total_thermal_time
                 new_leaves += 1
 
             if dry_matter['Leaf Number'].values.max() < 3:
@@ -197,6 +198,7 @@ for file in os.listdir(path):
                     week_day = 0
                     new_tillers = 0
         elif row['Stage'] == 'Double Ridge':
+            offset_total_thermal_time += row['Daily Degree Days']
             #Letting last week of growth in emergence phase be counted
             if week_day > 0:
                     dry_matter.loc[number_of_cohorts,['Cohort','#Tillers']] = [number_of_cohorts+1,new_tillers]
@@ -214,11 +216,12 @@ for file in os.listdir(path):
                 else:
                     dry_matter.loc[c-1,'Proportion Surviving'] = 1 / (1 + ((row['Stage Sum Degree Days']/400) / (A/dry_matter['N_n'][c-1])**alpha)**beta)
             #Grow Leaves
-            if (row['Total Degree Days'] - successive_leaf_thermal_time) >= phylochron_interval:
+            if (offset_total_thermal_time - successive_leaf_thermal_time) >= phylochron_interval:
                 dry_matter.loc[new_leaves,'Leaf Number'] = new_leaves + 1
                 dry_matter.loc[new_leaves,['Leaf Active Area','Stage','Rate of Leaf Growth']] = [0,'Grow',leaf_data.loc[new_leaves,"Max Leaf Area"] * rate_of_leaf_appearance_per_degree_day]
-                successive_leaf_thermal_time = row['Total Degree Days']
+                successive_leaf_thermal_time = offset_total_thermal_time
                 new_leaves += 1
+        print('julian day',julian_day,'\nTotal Degree Days:',offset_total_thermal_time)
         #Leaf Growth
         if dry_matter['Rate of Leaf Growth'].values.max() != 0:
             i=0
@@ -345,14 +348,9 @@ for file in os.listdir(path):
         elif row['Stage'] in ['Anthesis','Maturity']:
             mrc = mrc_a2m
         weight = sum(sum(weightDistribution.fillna(0).values))
-        print("Total Weight:", weight)
         R = (0.65*grc*sum(P_g_h)) + weight*mrc*(2**(0.05*(row['Max Temp']+row['Min Temp'])))
         weightDistribution.loc[julian_day,['Maintenance Respiration','Growth Respiration']] = [(0.65*grc*sum(P_g_h)),weight*mrc*(2**(0.05*(row['Max Temp']+row['Min Temp'])))]
-        try:
-            print(P_g_h)
-        except:
-            pass
-        print(Photosynthesis)
+
         print(dry_matter)
         
                         ###Dry-matter partitioning and grain growth submodel###
@@ -372,7 +370,7 @@ for file in os.listdir(path):
                 Assimilate_Distribution = Assimilate_Stage_Distribution.loc['DR Pre Grain']
         elif row['Stage'] == "Anthesis":
             if Results.fillna(0).loc['No. Grains Per Ear',plant_ID] == 0:
-                Results.loc['No. Grains Per Ear',plant_ID] = ((weightDistribution.loc[julian_day,'Ears'] / 10**-2) / (dry_matter['#Tillers'].last_valid_index())) #10**-2 to convert 10mg to g
+                Results.loc['No. Grains Per Ear',plant_ID] = ((weightDistribution.loc[julian_day,'Ears'] / 10**-2) / (dry_matter.loc[dry_matter['#Tillers'].last_valid_index(),'#Tillers'])) #10**-2 to convert 10mg to g
             Assimilate_Distribution = Assimilate_Stage_Distribution.loc['Anthesis']
             if assimilatePool == 0:
                 assimilatePool = 0.3 * sum(weightDistribution["Stems and Leaves"].fillna(0).values)
@@ -412,13 +410,15 @@ for file in os.listdir(path):
             if Results.loc['Grain Pool, Maturity (g/m^2)',plant_ID] == 0 and row['Stage Sum Degree Days'] > 55:
                 Results.loc['Grain Pool, Maturity (g/m^2)',plant_ID] = assimilatePool
 
-
-        print(julian_day)
-        print(weightDistribution)
-
-        #Graphing
-
+        # #Graphing
+        # tillerData.append((julian_day,dry_matter.loc[dry_matter['N_n'].last_valid_index(),'N_n']))
         
     print(LAI_z)    
     print(dry_matter)
 print(Results)
+# print(tillerData)
+# plt.plot([i[0] for i in tillerData],[i[1] for i in tillerData], marker='o', linestyle='-')
+# plt.xlabel('Days since seeding')
+# plt.ylabel('Number of Tillers')
+# plt.title('Number of Tillers throughout the growing year')
+# plt.show()
