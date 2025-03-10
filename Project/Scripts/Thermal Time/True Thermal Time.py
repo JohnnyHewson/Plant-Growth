@@ -1,4 +1,3 @@
-from random import seed
 import pandas as pd
 from math import cos, pi, sin, asin, acos, tan
 import datetime

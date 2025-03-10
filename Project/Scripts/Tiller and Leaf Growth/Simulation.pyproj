@@ -3,13 +3,14 @@
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>99d5cadd-a299-4fcb-ac62-b5715e65b1c3</ProjectGuid>
-    <ProjectHome>.</ProjectHome>
-    <StartupFile>TillerLeafPhotosynthesis.py</StartupFile>
+    <ProjectHome>
+    </ProjectHome>
+    <StartupFile>Simulation.py</StartupFile>
     <SearchPath>
     </SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
     <OutputPath>.</OutputPath>
-    <Name>Tiller and Leaf Growth</Name>
+    <Name>Simulation</Name>
     <RootNamespace>Tiller and Leaf Growth</RootNamespace>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
@@ -21,7 +22,7 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="TillerLeafPhotosynthesis.py" />
+    <Compile Include="Simulation.py" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
   <!-- Uncomment the CoreCompile target to enable the Build command in

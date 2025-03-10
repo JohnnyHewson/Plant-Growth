@@ -3,6 +3,7 @@ import pandas as pd
 import datetime
 import os
 from math import isnan, pi, cos, radians, sin, sqrt, exp, trunc
+import matplotlib.pyplot as plt
 
 project_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..\\..'))
 
@@ -69,7 +70,7 @@ Results = pd.DataFrame(index = ['Top Weight, Anthesis (g/m^2)',
                                 'Grain Weight (mg/grain)',
                                 'Grain Pool, Anthesis (g/m^2)',
                                 'Grain Pool, Maturity (g/m^2)',
-                                'Root Weight (g/m^2)'])
+                                'Root Weight, Anthesis (g/m^2)'])
 
 # Function to calculate daily thermal time (degree days)
 def calculate_thermal_time(T_min, T_max, T_base):
@@ -356,23 +357,27 @@ for file in os.listdir(path):
         
                         ###Dry-matter partitioning and grain growth submodel###
         netAssimilate = (0.65 * sum(P_g_h)) - R
-        if row['Stage'] == "Double Ridge" and row['Stage Sum Degree Days'] >= 200:
-            earGrowth = True
+        
+        #Setting and calculating the assimilate distribution as well as some variables that are measured at the start of the stage for the results dataframe
         if row['Stage'] == "Seeding":
             Assimilate_Distribution = Assimilate_Stage_Distribution.loc['No Assimilate']
         elif row['Stage'] == "Emergence":
             Assimilate_Distribution = Assimilate_Stage_Distribution.loc['Emergence']
         elif row['Stage'] == "Double Ridge":
             if row['Stage Sum Degree Days'] >= 200:
-                Assimilate_Distribution = Assimilate_Stage_Distribution.loc['DR Pre Grain']
-            else:
+                earGrowth = True
                 Assimilate_Distribution = Assimilate_Stage_Distribution.loc['DR Grain']
+                weightDistribution.loc[julian_day,'Ears'] = Assimilate_Distribution['Ears'] * netAssimilate
+            else:
+                Assimilate_Distribution = Assimilate_Stage_Distribution.loc['DR Pre Grain']
         elif row['Stage'] == "Anthesis":
+            if Results.fillna(0).loc['No. Grains Per Ear',plant_ID] == 0:
+                Results.loc['No. Grains Per Ear',plant_ID] = ((weightDistribution.loc[julian_day,'Ears'] / 10**-2) / (dry_matter['#Tillers'].last_valid_index())) #10**-2 to convert 10mg to g
             Assimilate_Distribution = Assimilate_Stage_Distribution.loc['Anthesis']
             if assimilatePool == 0:
                 assimilatePool = 0.3 * sum(weightDistribution["Stems and Leaves"].fillna(0).values)
             if row['Stage Sum Degree Days'] <= 55:
-                assimilatePool += Assimilate_Distribution['Grain'] * netAssimilate
+                assimilatePool += netAssimilate
             elif row['Stage Sum Degree Days'] <= 295:
                 G_Max = ((0.045 * (row['Max Temp'] + row['Min Temp'])) / 2) + 0.4
                 weightDistribution.loc[julian_day,'Grain'] = G_Max if netAssimilate + assimilatePool > G_Max else netAssimilate + assimilatePool
@@ -400,14 +405,20 @@ for file in os.listdir(path):
                 Results.loc['Top Weight, Anthesis (g/m^2)',plant_ID] = weight
             if Results.loc['Grain Pool, Anthesis (g/m^2)',plant_ID] == 0:
                 Results.loc['Grain Pool, Anthesis (g/m^2)',plant_ID] = assimilatePool
+                Results.loc['Root Weight, Anthesis (g/m^2)'] = weightDistribution['Roots']
         elif row['Stage'] == 'Maturity':
             if weight > Results.loc['Top Weight, Maturity (g/m^2)',plant_ID]:
                 Results.loc['Top Weight, Maturity (g/m^2)',plant_ID] = weight
             if Results.loc['Grain Pool, Maturity (g/m^2)',plant_ID] == 0 and row['Stage Sum Degree Days'] > 55:
                 Results.loc['Grain Pool, Maturity (g/m^2)',plant_ID] = assimilatePool
 
+
         print(julian_day)
         print(weightDistribution)
+
+        #Graphing
+
         
     print(LAI_z)    
-    print(dry_matter)       
+    print(dry_matter)
+print(Results)
