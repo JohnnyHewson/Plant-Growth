@@ -9,6 +9,8 @@ Project("{888888A0-9F3D-457C-B088-3A5042F75D52}") = "Simulation", "Scripts\Tille
 EndProject
 Project("{888888A0-9F3D-457C-B088-3A5042F75D52}") = "DataCollection", "Scripts\DataCollection\DataCollection.pyproj", "{A78247B5-C4C3-426D-8020-C121D2A51D40}"
 EndProject
+Project("{888888A0-9F3D-457C-B088-3A5042F75D52}") = "Data Visualization", "Data Visualization\Data Visualization.pyproj", "{F82E58BC-4B2A-4228-B427-6C1CD9BD82BB}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +23,8 @@ Global
 		{99D5CADD-A299-4FCB-AC62-B5715E65B1C3}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A78247B5-C4C3-426D-8020-C121D2A51D40}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{A78247B5-C4C3-426D-8020-C121D2A51D40}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F82E58BC-4B2A-4228-B427-6C1CD9BD82BB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F82E58BC-4B2A-4228-B427-6C1CD9BD82BB}.Release|Any CPU.ActiveCfg = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

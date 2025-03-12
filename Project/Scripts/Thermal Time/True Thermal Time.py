@@ -29,24 +29,13 @@ with open(configdir, 'r') as config_file:
                     'T_Base': float(T_base),
                     'Degree_Days': float(degree_days)
                     })
+            elif line[:line.index(',')] == 'Latitude':
+                Lat = float(line.strip().split(',')[1])
 
 #Constants
 P_opt = 20  #Optimal photoperiod-effective hours
 V_sat = 33
 V_base = 8
-
-
-#Function to calculate photoperiod-effective hours (P_H)
-def calculate_photoperiod(lat, date):
-    Jday = date.timetuple().tm_yday
-    theta1 = 2 * pi * ((Jday - 80) / 365)
-    theta2 = 0.0335 * (sin(2 * pi * (Jday/ 365)) - sin(2 * pi * (80/ 365))) 
-    theta = theta1 + theta2
-    Dec = asin(0.3978 * sin(theta))
-    #original: D = -0.10453 / (cos(lat) * cos(Dec)) 
-    D = (-0.10453 * cos(Dec)) / cos(lat)
-    P_R = acos(D - (tan(lat) * tan(Dec)))
-    return 24 * (P_R / pi)
 
 #Function to calculate daily thermal time (degree days)
 def calculate_thermal_time(T_min, T_max, T_base):
@@ -66,6 +55,18 @@ def calculate_thermal_time(T_min, T_max, T_base):
             T_t += 0
     return max((1 / 8) * T_t, 0)  #Degree Celsius Days
 
+#Function to calculate photoperiod-effective hours (P_H)
+def calculate_photoperiod(lat, date):
+    Jday = date.timetuple().tm_yday
+    theta1 = 2 * pi * ((Jday - 80) / 365)
+    theta2 = 0.0335 * (sin(2 * pi * (Jday/ 365)) - sin(2 * pi * (80/ 365))) 
+    theta = theta1 + theta2
+    Dec = asin(0.3978 * sin(theta))
+    #original: D = -0.10453 / (cos(lat) * cos(Dec)) 
+    D = (-0.10453 / (cos(Dec) / cos(lat)))
+    P_R = acos(D - (tan(lat) * tan(Dec)))
+    return 24 * (P_R / pi)
+
 #Function to calculate vernalization (VDD)
 def calculate_vernalization(T_min,T_max):
         V_eff = 0
@@ -83,7 +84,7 @@ def calculate_vernalization(T_min,T_max):
         return (1/8)*V_eff
 
 #Latitude input (can be modified as needed)
-latitude = 51.81 * pi / 180  #Rothamsted
+latitude = Lat * pi / 180
 
 #Loop through each plant in the stage timings data
 for index, row in stage_timings.iterrows():
@@ -99,6 +100,7 @@ for index, row in stage_timings.iterrows():
     sum_PVTt = 0
     VDD = 0
     current_stage_index = 0
+
     current_stage = stages[current_stage_index]
 
     #Filter thermal data to only include rows within the growing year
@@ -124,8 +126,6 @@ for index, row in stage_timings.iterrows():
             P_Base = 0
         elif current_stage_index == 2:
             P_Base = 7
-        else:
-            P_Base = P_opt  #No contribution post-anthesis
         
         #Calculate FP and the photoperiod-affected thermal time
         if P_H >= P_opt:
