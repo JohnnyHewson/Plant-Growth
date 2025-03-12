@@ -9,12 +9,6 @@ paper_thermal_data = pd.read_csv(paper_thermal_data_path, encoding='utf-8')
 paper_radiation_data_path = os.path.join(project_path,'Data','Interpolated','Radiation_78-81_CumulativeInterpolated.csv')
 paper_radiation_data = pd.read_csv(paper_radiation_data_path, encoding='utf-8')
 
-#Load the Calculatted Thermal Time and Radiation data from external databases
-thermal_data_path = os.path.join(project_path,'Data','Processed','Thermal Time','1979Early Thermal Time.csv') 
-thermal_data = pd.read_csv(thermal_data_path, encoding='utf-8')
-paper_radiation_data_path = os.path.join(project_path,'Data','Interpolated','Radiation_78-81_CumulativeInterpolated.csv')
-paper_radiation_data = pd.read_csv(paper_radiation_data_path, encoding='utf-8')
-
 #For thermal data
 paper_thermal_data['Date'] = pd.to_datetime(paper_thermal_data['Date'], format='%d/%m/%Y', dayfirst=True, errors='coerce')
 

@@ -59,11 +59,10 @@ def calculate_thermal_time(T_min, T_max, T_base):
 def calculate_photoperiod(lat, date):
     Jday = date.timetuple().tm_yday
     theta1 = 2 * pi * ((Jday - 80) / 365)
-    theta2 = 0.0335 * (sin(2 * pi * (Jday/ 365)) - sin(2 * pi * (80/ 365))) 
-    theta = theta1 + theta2
+    #theta2 = 0.0335 * (sin(2 * pi * (Jday/ 365)) - sin(2 * pi * (80/ 365))) 
+    theta = theta1 #+ theta2
     Dec = asin(0.3978 * sin(theta))
-    #original: D = -0.10453 / (cos(lat) * cos(Dec)) 
-    D = (-0.10453 / (cos(Dec) / cos(lat)))
+    D = (-0.10453 / (cos(Dec) * cos(lat)))
     P_R = acos(D - (tan(lat) * tan(Dec)))
     return 24 * (P_R / pi)
 
@@ -139,7 +138,7 @@ for index, row in stage_timings.iterrows():
         VDD += calculate_vernalization(T_min,T_max)
         if T_max > 30:
             VDD *= 0.5
-        if current_stage_index > 0:
+        if current_stage_index == 1:
             FV = min(max((VDD-V_base)/(V_sat-V_base), 0), 1)
         else:
             FV = 1
