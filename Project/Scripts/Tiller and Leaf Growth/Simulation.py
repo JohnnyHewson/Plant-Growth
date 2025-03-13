@@ -108,7 +108,7 @@ def calc_RoCoDLatE(latitude, julian_day):
     if denominator == 0:
         return 0.0
     else:
-        return numerator / denominator * declination_rate
+        return sqrt((numerator / denominator * declination_rate)**2)
 
 #For testing i would recommend only have 1 file of plant data in the thermal time folder in the processed data folder
 for file in os.listdir(path):
@@ -163,7 +163,8 @@ for file in os.listdir(path):
     tillerData = []
     for index,row in plant_data.iterrows():
         julian_day = row['Date'].timetuple().tm_yday
-        
+        print(dry_matter,row['Stage'])
+
         if row['Stage'] == 'Seeding':
             continue
         elif row['Stage'] == 'Emergence':
@@ -173,6 +174,7 @@ for file in os.listdir(path):
             if rate_of_change_of_daylength_at_emergence == 0:
                 rate_of_change_of_daylength_at_emergence = calc_RoCoDLatE(Lat, julian_day)
                 rate_of_leaf_appearance_per_degree_day = 0.025 * rate_of_change_of_daylength_at_emergence + 0.0104
+                print(row['Date'],rate_of_change_of_daylength_at_emergence)
                 phylochron_interval = 1/rate_of_leaf_appearance_per_degree_day
 
             #Growing first 3 leaves
@@ -187,7 +189,7 @@ for file in os.listdir(path):
             else:
                 week_day += 1
                 #new_tillers += max(row['Mean Temp'],0) * TPr * 250
-                new_tillers += calculate_thermal_time(row['Min Temp'],row['Max Temp'],T_base=1) * TPr * 250
+                new_tillers += 5 #calculate_thermal_time(row['Min Temp'],row['Max Temp'],T_base=1) * TPr * 250
                 if week_day == 7:
                     dry_matter.loc[number_of_cohorts,['Cohort','#Tillers']] = [number_of_cohorts+1,new_tillers]
                     if number_of_cohorts == 0:
@@ -412,7 +414,6 @@ for file in os.listdir(path):
 
         # #Graphing
         # tillerData.append((julian_day,dry_matter.loc[dry_matter['N_n'].last_valid_index(),'N_n']))
-        
     print(LAI_z)    
     print(dry_matter)
 print(Results)
