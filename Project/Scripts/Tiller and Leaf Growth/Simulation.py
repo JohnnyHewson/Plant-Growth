@@ -123,7 +123,7 @@ def calc_RoCoDLatE(latitude, julian_day):
     if denominator == 0:
         return 0.0
     else:
-        return numerator / denominator * declination_rate
+        return sqrt((numerator / denominator * declination_rate)**2)
 
 #For testing i would recommend only have 1 file of plant data in the thermal time folder in the processed data folder
 for file in os.listdir(path):
@@ -180,7 +180,7 @@ for file in os.listdir(path):
     tillerSurvival = []
     for index,row in plant_data.iterrows():
         julian_day = row['Date'].timetuple().tm_yday
-        print(row['Stage'])
+        
         if row['Stage'] == 'Seeding':
             offset_total_thermal_time += row['Daily Degree Days']
             continue
@@ -191,6 +191,7 @@ for file in os.listdir(path):
             if rate_of_change_of_daylength_at_emergence == 0:
                 rate_of_change_of_daylength_at_emergence = calc_RoCoDLatE(Lat, julian_day)
                 rate_of_leaf_appearance_per_degree_day = 0.025 * rate_of_change_of_daylength_at_emergence + 0.0104
+                print(row['Date'],rate_of_change_of_daylength_at_emergence)
                 phylochron_interval = 1/rate_of_leaf_appearance_per_degree_day
 
             #Growing first 3 leaves
@@ -204,14 +205,14 @@ for file in os.listdir(path):
                 continue
             else:
                 week_day += 1
-                new_tillers += max(row['Mean Temp'],0) * TPr * 250
-                #new_tillers += calculate_thermal_time(row['Min Temp'],row['Max Temp'],T_base=1) * TPr * 250
-                dry_matter.loc[number_of_cohorts,['Cohort','#Tillers']] = [number_of_cohorts+1,new_tillers+dry_matter.loc[number_of_cohorts-1,'N_n'] if number_of_cohorts > 0 else new_tillers]
-                if number_of_cohorts == 0:
-                    dry_matter.loc[number_of_cohorts,'N_n'] = 0
-                else:
-                    dry_matter.loc[number_of_cohorts,'N_n'] = dry_matter.loc[number_of_cohorts-1,'#Tillers'] + dry_matter.loc[number_of_cohorts-1,'N_n']
+                #new_tillers += max(row['Mean Temp'],0) * TPr * 250
+                new_tillers += calculate_thermal_time(row['Min Temp'],row['Max Temp'],T_base=1) * TPr * 250
                 if week_day == 7:
+                    dry_matter.loc[number_of_cohorts,['Cohort','#Tillers']] = [number_of_cohorts+1,new_tillers]
+                    if number_of_cohorts == 0:
+                        dry_matter.loc[number_of_cohorts,'N_n'] = 0 
+                    else:
+                        dry_matter.loc[number_of_cohorts,'N_n'] = dry_matter['#Tillers'][number_of_cohorts-1] + dry_matter['N_n'][number_of_cohorts-1]
                     number_of_cohorts += 1
                     week_day = 0
                     new_tillers = 0
@@ -426,14 +427,8 @@ for file in os.listdir(path):
             if Results.loc['Grain Pool, Maturity (g/m^2)',plant_ID] == 0 and row['Stage Sum Degree Days'] > 55:
                 Results.loc['Grain Pool, Maturity (g/m^2)',plant_ID] = assimilatePool
 
-        #Graphing
-        tillerData.append(dry_matter['N_n'].dropna().values[-1])
-        if row['Stage'] == 'Double Ridge':
-            if NnPeak.empty:
-                NnPeak = dry_matter['N_n']
-                print("PEAK")
-            tillerSurvival.append((row['Stage Sum Degree Days'],dry_matter['Proportion Surviving'].dropna()))
-            print(tillerSurvival)
+        # #Graphing
+        # tillerData.append((julian_day,dry_matter.loc[dry_matter['N_n'].last_valid_index(),'N_n']))
         
     print(LAI_z)    
     print(dry_matter)
