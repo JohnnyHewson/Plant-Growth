@@ -48,7 +48,6 @@ with open(configdir, 'r') as config_file:
 
 #Leaf data from the paper (Table 1)
 leaf_data = pd.DataFrame({"Lamina Length":[125,125,125,125,125,125,245,275,310,350,395,445],
-                          "Lamina Width":[6,6,6,6,6,6,11,13,15,15,15,15],
                           "Sheath Length":[0,0,0,0,0,0,120,125,125,135,145,155],
                           "Max Leaf Area":[653,653,653,653,653,979,1797,2322,3164,3481,3988,4560]})
 
@@ -141,15 +140,13 @@ for file in os.listdir(path):
     dry_matter['Cohort'] = dry_matter['Cohort'].convert_dtypes(convert_integer=True)
     dry_matter['Leaf Number'] = dry_matter['Leaf Number'].convert_dtypes(convert_integer=True)
 
-    LAI_z = pd.DataFrame({'Level':[0],'Height':[0],'LAI':[0]})
+    LAI_z = pd.DataFrame({'Level':[int(0)],'Height':[float64(0)],'LAI':[float64(0)]})
     LAI_z['Level'] = LAI_z['Level'].convert_dtypes(convert_integer=True)
-    LAI_z['LAI'] = LAI_z['LAI'].astype(dtype=float64)
 
     Photosynthesis = pd.DataFrame({'Level (z)':[],'Qp':[]})
     Photosynthesis['Level (z)'] = Photosynthesis['Level (z)'].convert_dtypes(convert_integer=True)
     Photosynthesis['Qp'] = Photosynthesis['Qp'].astype(dtype=float64)
 
-    hourly_temp = pd.DataFrame()
     weightDistribution = pd.DataFrame([[0,0,0,0,0,0,0]],
                                       columns=["Growth Respiration","Maintenance Respiration","Grain","Ears","Photosynthate Pool","Stems and Leaves","Roots"])
     weightDistribution.index.name = "Jday"
@@ -171,6 +168,7 @@ for file in os.listdir(path):
     earGrowth = False
     assimilatePool = 0
     NnPeak = pd.Series()
+    peakLAI = 0
     #Constants for Tiller Death Proportion
     A=825
     alpha = 1.46
@@ -199,9 +197,7 @@ for file in os.listdir(path):
                 successive_leaf_thermal_time = offset_total_thermal_time
                 new_leaves += 1
 
-            if dry_matter['Leaf Number'].values.max() < 3:
-                continue
-            else:
+            if dry_matter['Leaf Number'].values.max() >= 3:
                 week_day += 1
                 new_tillers += max(row['Mean Temp'],0) * TPr * 250
                 #new_tillers += calculate_thermal_time(row['Min Temp'],row['Max Temp'],T_base=1) * TPr * 250
@@ -243,7 +239,7 @@ for file in os.listdir(path):
             #Grow Leaves
             if (offset_total_thermal_time - successive_leaf_thermal_time) >= phylochron_interval:
                 dry_matter.loc[new_leaves,'Leaf Number'] = new_leaves + 1
-                dry_matter.loc[new_leaves,['Leaf Active Area','Stage','Rate of Leaf Growth']] = [0,'Grow',leaf_data.loc[new_leaves,"Max Leaf Area"] * rate_of_leaf_appearance_per_degree_day]
+                dry_matter.loc[new_leaves,['Leaf Active Area','Stage','Rate of Leaf Growth']] = [0,'Grow',leaf_data.loc[new_leaves,"Max Leaf Area"] * rate_of_leaf_appearance_per_degree_day/1.8]
                 successive_leaf_thermal_time = offset_total_thermal_time
                 new_leaves += 1
         #Leaf Growth
@@ -291,18 +287,14 @@ for file in os.listdir(path):
                         dry_matter.loc[i,['Leaf Active Area','Stage','Rate of Leaf Growth','Life Span']] = [0,'Dead',0,0]
                 i+=1
         #Leaf Area Index
-
         level = 1
         for leaf in dry_matter['Leaf Number'].values.dropna():
             LAI_z.loc[level,'Level'] = level
-            LAI_z.loc[level,'Height'] = round(leaf_data.loc[leaf-1,'Sheath Length'] * 1e-3 * 250, 8)
-            LAI_z.loc[level,'LAI'] = round(LAI_z.loc[level-1,'LAI']+dry_matter.loc[leaf-1,'Leaf Active Area'] * 1e-6 * 250, 8)
-
+            LAI_z.loc[level,'Height'] = leaf_data.loc[leaf-1,'Sheath Length'] * 1e-3 #Convert Sheath Length from mm to m
+            LAI_z.loc[level,'LAI'] = LAI_z.loc[level-1,'LAI']+dry_matter.loc[leaf-1,'Leaf Active Area'] * 1e-6 * 250 #Convert Leaf Area from mm^2 to m^2 and 250 because paper plants/m^2
+            #Change Level?
             if leaf_data.loc[leaf-1,'Sheath Length'] < leaf_data.loc[leaf,'Sheath Length']:
                 level += 1
-            elif level == 0:
-                level += 1
-
         ## Light interception and photosynthesis submodel ###
         P_g_h = pd.Series(0,range(0,24),dtype=float64)
         for i in LAI_z['Level']:
@@ -350,7 +342,6 @@ for file in os.listdir(path):
                     T_h = ((row['Max Temp']-row['Min Temp'])/2)*sin(((hour-0.5)*pi)/(13-sunrise)) + ((row['Max Temp']+row['Min Temp'])/2)
                 else:
                     T_h = ((row['Max Temp']-plant_data.loc[index+1 if index+1 < len(plant_data['Date']) else index,'Min Temp'])/2)*cos(((hour-12)*pi)/(24-(13-sunrise))) + ((row['Max Temp']+plant_data.loc[index+1 if index+1 < len(plant_data['Date']) else index,'Min Temp'])/2)
-                hourly_temp.loc[julian_day,hour] = T_h
                 #P_g is summed of daylight hours
                 if Qp != 0:
                     #P_m is the temperature-dependent maximum photosynthetic rate
@@ -364,16 +355,15 @@ for file in os.listdir(path):
                 else:
                     P_g = 0
                 #Summing P_g for each layer for daily gross total
-                P_g_h[hour]+=P_g
+                P_g_h[hour]+=P_g*3600/1000 #Converting from per mg of CO2/sec to g of CO2/hour
                 hour += 1
-        P_g_h = P_g_h.divide(250) #Revert back to per plant basis
         if row['Stage'] in ['Emergence','Double Ridge']:
             mrc = mrc_e2a
         elif row['Stage'] in ['Anthesis','Maturity']:
             mrc = mrc_a2m
         weight = sum(sum(weightDistribution.fillna(0).values))
         R = (0.65*grc*sum(P_g_h)) + weight*mrc*(2**(0.05*(row['Max Temp']+row['Min Temp'])))
-        weightDistribution.loc[julian_day,['Maintenance Respiration','Growth Respiration']] = [(0.65*grc*sum(P_g_h)),weight*mrc*(2**(0.05*(row['Max Temp']+row['Min Temp'])))]
+        weightDistribution.loc[index,['Maintenance Respiration','Growth Respiration']] = [(0.65*grc*sum(P_g_h)),weight*mrc*(2**(0.05*(row['Max Temp']+row['Min Temp'])))]
         
                         ###Dry-matter partitioning and grain growth submodel###
         netAssimilate = (0.65 * sum(P_g_h)) - R
@@ -387,12 +377,12 @@ for file in os.listdir(path):
             if row['Stage Sum Degree Days'] >= 200:
                 earGrowth = True
                 Assimilate_Distribution = Assimilate_Stage_Distribution.loc['DR Grain']
-                weightDistribution.loc[julian_day,'Ears'] = Assimilate_Distribution['Ears'] * netAssimilate
+                weightDistribution.loc[index,'Ears'] = Assimilate_Distribution['Ears'] * netAssimilate
             else:
                 Assimilate_Distribution = Assimilate_Stage_Distribution.loc['DR Pre Grain']
         elif row['Stage'] == "Anthesis":
             if Results.fillna(0).loc['No. Grains Per Ear',plant_ID] == 0:
-                Results.loc['No. Grains Per Ear',plant_ID] = ((weightDistribution.loc[julian_day,'Ears'] / 10**-2) / (dry_matter.loc[dry_matter['#Tillers'].last_valid_index(),'#Tillers'])) #10**-2 to convert 10mg to g
+                Results.loc['No. Grains Per Ear',plant_ID] = ((weightDistribution.loc[index,'Ears'] / 10**-2) / (dry_matter.loc[dry_matter['#Tillers'].last_valid_index(),'#Tillers'])) #10**-2 to convert 10mg to g
             Assimilate_Distribution = Assimilate_Stage_Distribution.loc['Anthesis']
             if assimilatePool == 0:
                 assimilatePool = 0.3 * sum(weightDistribution["Stems and Leaves"].fillna(0).values)
@@ -400,10 +390,10 @@ for file in os.listdir(path):
                 assimilatePool += netAssimilate
             elif row['Stage Sum Degree Days'] <= 295:
                 G_Max = ((0.045 * (row['Max Temp'] + row['Min Temp'])) / 2) + 0.4
-                weightDistribution.loc[julian_day,'Grain'] = G_Max if netAssimilate + assimilatePool > G_Max else netAssimilate + assimilatePool
+                weightDistribution.loc[index,'Grain'] = G_Max if netAssimilate + assimilatePool > G_Max else netAssimilate + assimilatePool
             elif row['Stage Sum Degree Days'] <= 350:
                 if netAssimilate < 0:
-                    weightDistribution.loc[julian_day,'Grain'] = netAssimilate
+                    weightDistribution.loc[index,'Grain'] = netAssimilate
 
                         ### Root Growth Submodel ###
         #This submodel acts as a assimilate sink so i chose not to properly code it as it is pointless to do so
@@ -418,7 +408,7 @@ for file in os.listdir(path):
         seminalWeight = seminalSpecificWeight*seminalExtension
         lateralWeight = lateralSpecificWeight*lateralExtension
         root_weight = seminalWeight + lateralWeight
-        weightDistribution.loc[julian_day,"Root"] = root_weight
+        weightDistribution.loc[index,"Root"] = root_weight
 
         #Results Dataframe Collection
         if row['Stage'] == 'Anthesis':
@@ -438,11 +428,12 @@ for file in os.listdir(path):
         if row['Stage'] == 'Double Ridge':
             if NnPeak.empty:
                 NnPeak = dry_matter['N_n']
-                print("PEAK")
             tillerSurvival.append((row['Stage Sum Degree Days'],dry_matter['Proportion Surviving'].dropna()))
-            print(tillerSurvival)
         
-    print(LAI_z)    
-    print(dry_matter)
+        peakLAI = max(peakLAI, sum(LAI_z['LAI']))
+        print(peakLAI)
+        print(index)
+        print(LAI_z)    
+        print(dry_matter)
     plot_list_values(tillerSurvival,NnPeak)
 print(Results)
