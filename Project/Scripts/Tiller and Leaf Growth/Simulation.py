@@ -123,7 +123,7 @@ def calc_RoCoDLatE(latitude, julian_day):
     if denominator == 0:
         return 0.0
     else:
-        return sqrt((numerator / denominator * declination_rate)**2)
+        return numerator / denominator * declination_rate
 
 #For testing i would recommend only have 1 file of plant data in the thermal time folder in the processed data folder
 for file in os.listdir(path):
@@ -180,7 +180,6 @@ for file in os.listdir(path):
     tillerSurvival = []
     for index,row in plant_data.iterrows():
         julian_day = row['Date'].timetuple().tm_yday
-        
         if row['Stage'] == 'Seeding':
             offset_total_thermal_time += row['Daily Degree Days']
             continue
@@ -191,7 +190,6 @@ for file in os.listdir(path):
             if rate_of_change_of_daylength_at_emergence == 0:
                 rate_of_change_of_daylength_at_emergence = calc_RoCoDLatE(Lat, julian_day)
                 rate_of_leaf_appearance_per_degree_day = 0.025 * rate_of_change_of_daylength_at_emergence + 0.0104
-                print(row['Date'],rate_of_change_of_daylength_at_emergence)
                 phylochron_interval = 1/rate_of_leaf_appearance_per_degree_day
 
             #Growing first 3 leaves
@@ -205,14 +203,14 @@ for file in os.listdir(path):
                 continue
             else:
                 week_day += 1
-                #new_tillers += max(row['Mean Temp'],0) * TPr * 250
-                new_tillers += calculate_thermal_time(row['Min Temp'],row['Max Temp'],T_base=1) * TPr * 250
+                new_tillers += max(row['Mean Temp'],0) * TPr * 250
+                #new_tillers += calculate_thermal_time(row['Min Temp'],row['Max Temp'],T_base=1) * TPr * 250
+                dry_matter.loc[number_of_cohorts,['Cohort','#Tillers']] = [number_of_cohorts+1,new_tillers+dry_matter.loc[number_of_cohorts-1,'N_n'] if number_of_cohorts > 0 else new_tillers]
+                if number_of_cohorts == 0:
+                    dry_matter.loc[number_of_cohorts,'N_n'] = 0
+                else:
+                    dry_matter.loc[number_of_cohorts,'N_n'] = dry_matter.loc[number_of_cohorts-1,'#Tillers'] + dry_matter.loc[number_of_cohorts-1,'N_n']
                 if week_day == 7:
-                    dry_matter.loc[number_of_cohorts,['Cohort','#Tillers']] = [number_of_cohorts+1,new_tillers]
-                    if number_of_cohorts == 0:
-                        dry_matter.loc[number_of_cohorts,'N_n'] = 0 
-                    else:
-                        dry_matter.loc[number_of_cohorts,'N_n'] = dry_matter['#Tillers'][number_of_cohorts-1] + dry_matter['N_n'][number_of_cohorts-1]
                     number_of_cohorts += 1
                     week_day = 0
                     new_tillers = 0
@@ -229,6 +227,14 @@ for file in os.listdir(path):
                     week_day = 0
                     new_tillers = 0
             #Calculating the proportion surviving in each Cohort
+
+            #adding 1600 tiller cohort for testing
+            try:
+                dry_matter.loc[number_of_cohorts,['Cohort','#Tillers']]
+            except:
+                dry_matter.loc[number_of_cohorts,['Cohort','#Tillers']] = [number_of_cohorts+1, 1600-dry_matter.loc[number_of_cohorts-1,'N_n']]
+                dry_matter.loc[number_of_cohorts,'N_n'] = 1600
+            
             for c in dry_matter['Cohort'].dropna():
                 if c == 1:
                     dry_matter.loc[c-1,'Proportion Surviving'] = 1
@@ -339,11 +345,11 @@ for file in os.listdir(path):
                 else:
                     P_max = 0
                 if hour < sunrise:
-                    T_h = ((plant_data.loc[julian_day-1,'Max Temp']-row['Min Temp'])/2)*cos(((hour-12)*pi)/(24-(13-sunrise))) + ((plant_data.loc[julian_day-1,'Max Temp']+row['Min Temp'])/2)
+                    T_h = ((plant_data.loc[index-1,'Max Temp']-row['Min Temp'])/2)*cos(((hour-12)*pi)/(24-(13-sunrise))) + ((plant_data.loc[index-1,'Max Temp']+row['Min Temp'])/2)
                 elif sunrise <= hour and hour <= 13:
                     T_h = ((row['Max Temp']-row['Min Temp'])/2)*sin(((hour-0.5)*pi)/(13-sunrise)) + ((row['Max Temp']+row['Min Temp'])/2)
                 else:
-                    T_h = ((row['Max Temp']-plant_data.loc[julian_day+1,'Min Temp'])/2)*cos(((hour-12)*pi)/(24-(13-sunrise))) + ((row['Max Temp']+plant_data.loc[julian_day+1,'Min Temp'])/2)
+                    T_h = ((row['Max Temp']-plant_data.loc[index+1 if index+1 < len(plant_data['Date']) else index,'Min Temp'])/2)*cos(((hour-12)*pi)/(24-(13-sunrise))) + ((row['Max Temp']+plant_data.loc[index+1 if index+1 < len(plant_data['Date']) else index,'Min Temp'])/2)
                 hourly_temp.loc[julian_day,hour] = T_h
                 #P_g is summed of daylight hours
                 if Qp != 0:
@@ -427,8 +433,14 @@ for file in os.listdir(path):
             if Results.loc['Grain Pool, Maturity (g/m^2)',plant_ID] == 0 and row['Stage Sum Degree Days'] > 55:
                 Results.loc['Grain Pool, Maturity (g/m^2)',plant_ID] = assimilatePool
 
-        # #Graphing
-        # tillerData.append((julian_day,dry_matter.loc[dry_matter['N_n'].last_valid_index(),'N_n']))
+        #Graphing
+        tillerData.append(dry_matter['N_n'].dropna().values[-1])
+        if row['Stage'] == 'Double Ridge':
+            if NnPeak.empty:
+                NnPeak = dry_matter['N_n']
+                print("PEAK")
+            tillerSurvival.append((row['Stage Sum Degree Days'],dry_matter['Proportion Surviving'].dropna()))
+            print(tillerSurvival)
         
     print(LAI_z)    
     print(dry_matter)

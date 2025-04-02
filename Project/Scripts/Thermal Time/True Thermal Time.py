@@ -155,6 +155,8 @@ for index, row in stage_timings.iterrows():
             'Daily Degree Days': PVTt,
             'Stage Sum Degree Days': cumulative_PVTt,
             'Total Degree Days': sum_PVTt,
+            'Unaffected Daily Thermal Time': thermal_time,
+            'Sum Unaffected Daily Thermal Time': sum(int(plant_id[n][6]) for n in range(len(plant_results))) + int(thermal_time)
         })
 
         #Check if the current stage threshold is met

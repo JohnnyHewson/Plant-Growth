@@ -28,11 +28,15 @@ month_days = [0, 30, 61, 92, 122, 153, 183, 214, 244, 275, 305, 336]
 month_labels = ['S', 'O', 'N', 'D', 'J', 'F', 'M', 'A', 'M', 'J', 'J', 'A']
 
 # Create plot
+colors = ['r', 'g', 'b']  # List of colors
+year_colors = {year: colors[i % len(colors)] for i, year in enumerate(paper_thermal_data['Growing Year'].unique())}
+
+
 plt.figure(figsize=(12, 6))
 for year, group in paper_thermal_data.groupby('Growing Year'):
-    plt.plot(group['Day_of_Growing_Season'], group['Cumulative Thermal Time'], label=f'Paper {year}')
+    plt.plot(group['Day_of_Growing_Season'], group['Cumulative Thermal Time'], label=f'Paper {year}', color=year_colors[year])
 for year, group in additional_thermal_data.groupby('Growing Year'):
-    plt.plot(group['Day_of_Growing_Season'], group['Cumulative Thermal Time'], linestyle='-.', label=f'Calculated {year}')
+    plt.plot(group['Day_of_Growing_Season'], group['Cumulative Thermal Time'], linestyle='-.', label=f'Calculated {year}', color=year_colors[year])
 
 plt.xticks(month_days, month_labels)
 plt.xlabel('Month')

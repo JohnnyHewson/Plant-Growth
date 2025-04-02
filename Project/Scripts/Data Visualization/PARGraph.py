@@ -48,7 +48,7 @@ plt.tight_layout()
 
 # Calculate and plot running total in MJ/m^2
 hourly_mj = par_data * W_TO_MJ_CONVERSION  # Convert to MJ/m^2/hour
-daily_sums = hourly_mj.sum(axis=1).div(1000)
+daily_sums = hourly_mj.sum(axis=1)
 running_total = daily_sums.cumsum()
 
 plt.figure(figsize=(12, 6))

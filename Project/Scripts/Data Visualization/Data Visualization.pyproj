@@ -4,7 +4,7 @@
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>f82e58bc-4b2a-4228-b427-6c1cd9bd82bb</ProjectGuid>
     <ProjectHome>.</ProjectHome>
-    <StartupFile>PARGraph.py</StartupFile>
+    <StartupFile>TtGraphing.py</StartupFile>
     <SearchPath>
     </SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
