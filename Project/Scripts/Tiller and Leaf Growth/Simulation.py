@@ -2,7 +2,7 @@ from numpy import float64
 import pandas as pd
 import datetime
 import os
-from math import pi, cos, radians, sin, sqrt, exp, trunc
+from math import nan, pi, cos, radians, sin, sqrt, exp, trunc
 import matplotlib.pyplot as plt
 
 project_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..\\..'))
@@ -175,6 +175,7 @@ for file in os.listdir(path):
 
     tillerData = []
     tillerSurvival = []
+    LAIGraph = []
     for index,row in plant_data.iterrows():
         julian_day = row['Date'].timetuple().tm_yday
         if row['Stage'] == 'Seeding':
@@ -292,7 +293,10 @@ for file in os.listdir(path):
                 leaf = 11 #Leaves above 12 have the same dimensions as leaf 12 (which has index 11)
             LAI_z.loc[level,'Level'] = level
             LAI_z.loc[level,'Height'] = leaf_data.loc[leaf-1,'Sheath Length'] * 1e-3 #Convert Sheath Length from mm to m
-            LAI_z.loc[level,'LAI'] = LAI_z.loc[level-1,'LAI']+dry_matter.loc[leaf-1,'Leaf Active Area'] * 1e-6 * 250 #Convert Leaf Area from mm^2 to m^2 and 250 because paper plants/m^2
+            if LAI_z.fillna(0).loc[level,'LAI'] == 0:
+                LAI_z.loc[level,'LAI'] = LAI_z.loc[level,'LAI']+dry_matter.loc[leaf-1,'Leaf Active Area'] * 1e-6 * 250 #Convert Leaf Area from mm^2 to m^2 and 250 because paper plants/m^2
+            else:
+                LAI_z.loc[level,'LAI'] = LAI_z.loc[level-1,'LAI']+dry_matter.loc[leaf-1,'Leaf Active Area'] * 1e-6 * 250 #Convert Leaf Area from mm^2 to m^2 and 250 because paper plants/m^2
             #Change Level?
             if leaf_data.loc[leaf-1,'Sheath Length'] < leaf_data.loc[leaf,'Sheath Length']:
                 level += 1
@@ -430,13 +434,15 @@ for file in os.listdir(path):
             if NnPeak.empty:
                 NnPeak = dry_matter['N_n']
             tillerSurvival.append((row['Stage Sum Degree Days'],dry_matter['Proportion Surviving'].dropna()))
+        if len(LAI_z['LAI'])>1:
+            peakLAI = max(peakLAI, sum(LAI_z['LAI']))
+            LAIGraph.append((row['Stage Sum Degree Days'],pd.Series(LAI_z.loc[len(LAI_z['LAI'])-1,'LAI'])))
         
-        peakLAI = max(peakLAI, sum(LAI_z['LAI']))
         print(peakLAI)
         print(rate_of_change_of_daylength_at_emergence)
         print(phylochron_interval)
         print(index)
         print(LAI_z)    
         print(dry_matter)
-    plot_list_values(tillerSurvival,NnPeak)
+    plot_list_values(LAIGraph,pd.Series('Peak'))
 print(Results)
