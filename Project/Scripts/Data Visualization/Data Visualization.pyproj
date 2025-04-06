@@ -21,9 +21,10 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="StageTimings.py" />
     <Compile Include="PARGraph.py" />
     <Compile Include="ThermalTimeComparison.py" />
-    <Compile Include="TrueTtGraph.py" />
+    <Compile Include="AffectedTtGraph.py" />
     <Compile Include="TtGraphing.py" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
