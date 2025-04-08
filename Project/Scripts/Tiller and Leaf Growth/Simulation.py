@@ -2,7 +2,7 @@ from numpy import float64
 import pandas as pd
 import datetime
 import os
-from math import nan, pi, cos, radians, sin, sqrt, exp, trunc
+from math import acos, nan, pi, cos, radians, sin, sqrt, exp, tan, trunc
 import matplotlib.pyplot as plt
 
 project_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..\\..'))
@@ -12,6 +12,17 @@ with open(configdir, 'r') as config_file:
     stages = []
     for line in config_file:
         if line.__contains__(','):
+            if line[:line.index(',')] in ['Seeding',
+                                          'Emergence',
+                                          'Double Ridge',
+                                          'Anthesis',
+                                          'Maturity']:
+                stage_name, T_base, degree_days = line.strip().split(',')
+                stages.append({
+                    'Stage': stage_name,
+                    'T_Base': float(T_base),
+                    'Degree_Days': float(degree_days)
+                    })
             if line[:line.index(',')] == 'shoot_production_rate':
                 TPr = float(line.strip().split(',')[1])
             elif line[:line.index(',')] == 'Latitude':
@@ -71,15 +82,24 @@ Results = pd.DataFrame(index = ['Top Weight, Anthesis (g/m^2)',
                                 'Grain Pool, Maturity (g/m^2)',
                                 'Root Weight, Anthesis (g/m^2)'])
 
-def calculate_thermal_time(T_min, T_max, T_base):
+#Calculates T_H for Thermal Time and Vernalized Degree Days Calculations
+def calc_T_H(T_max, T_min, r):
+    f_r = (1/2) * (1 + cos(radians(90 / 8) * ((2 * r) - 1)))
+    T_H = T_min + f_r * (T_max - T_min)
+
+    return max(T_H, 0)
+
+#Calculates Un/affected Thermal Time (Celcius)
+def calc_thermal_time(T_min, T_max, VDD, declination, latitude, current_stage, stages, affected):
     T_min = max(T_min,0)
     T_max = max(T_max,0)
     T_opt = 26
     TD_max = 37
+    T_base = next(dic['T_Base'] for dic in stages if current_stage == dic['Stage'])
+
     T_t = 0
     for r in range(1, 9):
-        f_r = (1 / 2) * (1 + cos((90 / 8) * (2 * r - 1) * pi / 180))
-        T_H = max(T_min + f_r * (T_max - T_min), 0)  # Degree Celsius
+        T_H = calc_T_H(T_max, T_min, r)
         if T_H < T_opt:
             T_t += T_H - T_base
         elif T_H == T_opt:
@@ -88,7 +108,87 @@ def calculate_thermal_time(T_min, T_max, T_base):
             T_t += (T_opt - T_base) * (TD_max - T_H) / (TD_max - T_opt)
         else:
             T_t += 0
-    return max((1 / 8) * T_t, 0)  # Degree Celsius Days
+    T_t = max((1 / 8) * T_t, 0)
+
+    if affected:
+        return T_t * calc_FP(declination, latitude, current_stage) * calc_FV(current_stage, VDD)
+    else:
+        return T_t
+
+
+def calc_FP(declination, latitude, current_stage):
+    #FP only affects thermal time during Emergence and Double Ridge
+    if current_stage in ["Seeding", "Anthesis", "Maturity"]:
+        return 1
+    elif current_stage == "Double Ridge":
+        P_base = 7
+    else:
+        P_base = 0
+    P_opt = 20
+    latitude = radians(latitude)
+
+    D = (-0.10453) / (cos(latitude) * cos(declination))
+    P_R = acos(D - (tan(latitude) * tan(declination)))
+    P_H = P_R * (24/pi)
+    FP = (P_H - P_base) / (P_opt - P_base)
+
+    return FP
+
+def calc_FV(current_stage, VDD):
+    if current_stage in ["Seeding", "Double Ridge", "Anthesis", "Maturity"]:
+        return 1
+    else:
+        V_base = 8
+        V_sat = 33
+
+        FV = (VDD - V_base) / (V_sat - V_base)
+
+        return FV
+
+def calc_VDD(T_max, T_min, VDD):
+    T_min = max(T_min,0)
+    T_max = max(T_max,0)
+
+    if T_max > 30:
+        VDD /= 2
+
+    V_eff = 0
+    for r in range(1,9):
+        T_H = calc_T_H(T_max, T_min, r)
+        if -4 <= T_H and T_H < 3:
+            V_eff += (T_H + 4) / 7
+        elif 3 <= T_H and T_H < 10:
+            V_eff += 1
+        elif 10 <= T_H and T_H < 17:
+            V_eff += (17 - T_H) / 7
+
+    VDD += (1/8) * V_eff
+
+    return VDD
+
+#Calculate Declination Angle
+def calc_dec(julian_day):
+    tilt_of_earth = 23.44 * (pi / 180) #Converts to radians
+    radians_per_day = 2*pi * (1 / 365.25)
+    declination = -tilt_of_earth * cos(radians_per_day * (julian_day + 10))
+    
+    return declination
+
+#Rate of Change of Daylength at Emergence
+def calc_RoCoDLatE(latitude, declination):
+    tilt_of_earth = 23.44 * (pi / 180) #Converts to radians
+    radians_per_day = 2*pi * (1 / 365.25)
+
+    latitude_rad = radians(latitude)
+    declination_rate = (tilt_of_earth * radians_per_day * sin(radians_per_day * (julian_day + 10)))
+
+    numerator = cos(declination) * sin(latitude_rad)
+    denominator = sqrt((1 - (sin(latitude_rad) * sin(declination)))**2)
+    
+    if denominator == 0:
+        return 0.0
+    else:
+        return (24 / pi) * (numerator / denominator) * declination_rate
 
 def plot_list_values(values, labels):
     plt.figure(figsize=(8, 5))
@@ -106,36 +206,19 @@ def plot_list_values(values, labels):
     plt.grid(True)
     plt.show()
 
-#Rate of Change of Daylength at Emergence
-def calc_RoCoDLatE(latitude, julian_day):
-    tilt_of_earth = 23.44 * (pi / 180) #Converts to radians
-    radians_per_day = 2*pi * (1 / 365.25)
-
-    latitude_rad = radians(latitude)
-    declination = -tilt_of_earth * cos(radians_per_day * (julian_day + 10))
-    declination_rate = (tilt_of_earth * radians_per_day * sin(radians_per_day * (julian_day + 10)))
-
-    numerator = cos(declination) * sin(latitude_rad)
-    denominator = sqrt((1 - (sin(latitude_rad) * sin(declination)))**2)
-    
-    if denominator == 0:
-        return 0.0
-    else:
-        return (24 / pi) * (numerator / denominator) * declination_rate
-
 #For testing i would recommend only have 1 file of plant data in the thermal time folder in the processed data folder
-for file in os.listdir(path):
-    plant_ID = file.split(' ')[0]
-    plant_data = pd.read_csv(os.path.join(path,file))
-    plant_data['Date'] = pd.to_datetime(plant_data['Date'])
-    plant_data = plant_data.merge(temp_data, on='Date', how='outer')
+seeding_dates = pd.read_csv(os.path.join(project_path, 'Data', 'Raw','Seedings Dates.csv'),index_col=0,header=0)
+for Plant_ID, date in seeding_dates.iterrows():
+    plant_data = pd.DataFrame()
+    plant_data['Date'] = pd.date_range(start=date["Seeding Date"], end=datetime.datetime((datetime.datetime.strptime(date["Seeding Date"], "%Y-%m-%d").year + 1),8,31)) #Set date range from day of seeding to end of growing year
+    plant_data = plant_data.merge(temp_data[(temp_data['Date'] >= plant_data['Date'].iloc[0]) &
+                                            (temp_data['Date'] <= plant_data['Date'].iloc[-1])], on='Date', how='outer')
     plant_data = plant_data.dropna().reset_index().drop(columns='index')
-    
-    Results[plant_ID] = [0,0,0,0,0,0,0,0,0,0,0]
 
+    Results[Plant_ID] = [0,0,0,0,0,0,0,0,0,0,0]
     #Setting up Dataframes
     dry_matter = pd.DataFrame({'Cohort':[int(0)],'#Tillers':[0],'N_n':[0],'Proportion Surviving':[0],
-                               'Leaf Number':[int(0)],'Leaf Active Area':[0],'Stage':[""],'Rate of Leaf Growth':[float(0)],'Life Span':[0]})
+                               'Leaf Number':[int(0)],'Leaf Active Area':[float64(0)],'Stage':[""],'Rate of Leaf Growth':[float(0)],'Life Span':[0]})
     dry_matter['Cohort'] = dry_matter['Cohort'].convert_dtypes(convert_integer=True)
     dry_matter['Leaf Number'] = dry_matter['Leaf Number'].convert_dtypes(convert_integer=True)
 
@@ -155,6 +238,10 @@ for file in os.listdir(path):
 
     ### Tiller and Leaf Growth Submodel ###
     #Initialising Variables
+    stage_number = 0
+    stage_Tt = 0
+    Total_Tt = 0
+    VDD = 0
     rate_of_change_of_daylength_at_emergence = 0
     phylochron_interval = 0
     new_tillers = 0
@@ -176,17 +263,50 @@ for file in os.listdir(path):
     tillerData = []
     tillerSurvival = []
     LAIGraph = []
+    
     for index,row in plant_data.iterrows():
         julian_day = row['Date'].timetuple().tm_yday
+        #Assign Stage
+        row['Stage'] = stages[stage_number]['Stage']
+        plant_data.loc[index, 'Stage'] = row['Stage']
+        print(row['Stage'])
+        ###Calculating Degree Days per day, per stage and overall
+        #Per Day
+        row['Daily Degree Days'] = calc_thermal_time(row['Max Temp'], row['Min Temp'], VDD, calc_dec(julian_day), Lat, row['Stage'], stages, affected=True)
+        if 'Daily Degree Days' in plant_data:
+            if index > 1 and row['Stage'] != plant_data.loc[index - 1, 'Stage']:
+                #Add the leftover degree days from the last stage if the stage changes
+                row['Daily Degree Days'] += (plant_data.loc[index - 2, 'Stage Sum Degree Days'] + plant_data.loc[index - 1, 'Daily Degree Days'] - stages[stage_number - 1]['Degree_Days'])
+        plant_data.loc[index, 'Daily Degree Days'] = row['Daily Degree Days']
+
+        #Per Stage
+        stage_Tt += row['Daily Degree Days']
+        if stage_Tt + row['Daily Degree Days'] >= stages[stage_number]['Degree_Days'] and row['Stage'] != stages[-1]['Stage']: #Maturity is the last stage
+            stage_number += 1
+            stage_Tt = 0
+            plant_data.loc[index, 'Stage Sum Degree Days'] = stages[stage_number]['Degree_Days']
+        else:
+            stage_Tt += row['Daily Degree Days']
+            plant_data.loc[index, 'Stage Sum Degree Days'] = stage_Tt
+        row['Stage Sum Degree Days'] = plant_data.loc[index, 'Stage Sum Degree Days']
+
+        # Step 4: Calculate Total Degree Days
+        Total_Tt += row['Daily Degree Days']
+        plant_data.loc[index, 'Total Degree Days'] = Total_Tt
+        row['Total Degree Days'] = plant_data.loc[index, 'Total Degree Days']
+
+        #Calculating VDD as its cumulative starting from germination
+        VDD = calc_VDD(row['Max Temp'], row['Min Temp'], VDD)
+
+        #Starting stage based effects
         if row['Stage'] == 'Seeding':
             offset_total_thermal_time += row['Daily Degree Days']
             continue
         elif row['Stage'] == 'Emergence':
             offset_total_thermal_time += row['Daily Degree Days']
-
             #Rate of new leaves
             if rate_of_change_of_daylength_at_emergence == 0:
-                rate_of_change_of_daylength_at_emergence = calc_RoCoDLatE(Lat, julian_day)
+                rate_of_change_of_daylength_at_emergence = calc_RoCoDLatE(Lat, calc_dec(julian_day))
                 rate_of_leaf_appearance_per_degree_day = 0.025 * rate_of_change_of_daylength_at_emergence + 0.0104
                 phylochron_interval = 1/rate_of_leaf_appearance_per_degree_day
 
@@ -200,7 +320,6 @@ for file in os.listdir(path):
             if dry_matter['Leaf Number'].values.max() >= 3:
                 week_day += 1
                 new_tillers += max(row['Mean Temp'],0) * TPr * 250
-                #new_tillers += calculate_thermal_time(row['Min Temp'],row['Max Temp'],T_base=1) * TPr * 250
                 dry_matter.loc[number_of_cohorts,['Cohort','#Tillers']] = [number_of_cohorts+1,new_tillers+dry_matter.loc[number_of_cohorts-1,'N_n'] if number_of_cohorts > 0 else new_tillers]
                 if number_of_cohorts == 0:
                     dry_matter.loc[number_of_cohorts,'N_n'] = 0
@@ -218,7 +337,7 @@ for file in os.listdir(path):
                     if number_of_cohorts == 0:
                         dry_matter.loc[number_of_cohorts,'N_n'] = 0 
                     else:
-                        dry_matter.loc[number_of_cohorts,'N_n'] = dry_matter['#Tillers'][number_of_cohorts-1] + dry_matter['N_n'][number_of_cohorts-1]
+                        dry_matter.loc[number_of_cohorts,'N_n'] = dry_matter.loc[number_of_cohorts-1,'#Tillers'] + dry_matter.loc[number_of_cohorts-1,'N_n']
                     number_of_cohorts += 1
                     week_day = 0
                     new_tillers = 0
@@ -235,7 +354,7 @@ for file in os.listdir(path):
                 if c == 1:
                     dry_matter.loc[c-1,'Proportion Surviving'] = 1
                 elif c > 1:
-                    dry_matter.loc[c-1,'Proportion Surviving'] = 1 / (1 + ((row['Stage Sum Degree Days']/400) / (A/dry_matter['N_n'][c-1])**alpha)**beta)
+                    dry_matter.loc[c-1,'Proportion Surviving'] = 1 / (1 + ((row['Stage Sum Degree Days']/400) / (A/dry_matter.loc[c-1,'N_n'])**alpha)**beta)
             #Grow Leaves
             if (offset_total_thermal_time - successive_leaf_thermal_time) >= phylochron_interval:
                 dry_matter.loc[new_leaves,'Leaf Number'] = new_leaves + 1
@@ -249,13 +368,13 @@ for file in os.listdir(path):
                 #Growth Stage
                 if dry_matter.loc[i,'Stage'] == 'Grow':
                     if area == 0:
-                        dry_matter.loc[i,'Leaf Active Area'] = max(row['Daily Degree Days'],0) * dry_matter['Rate of Leaf Growth'][i]
+                        dry_matter.loc[i,'Leaf Active Area'] = max(row['Daily Degree Days'],0) * dry_matter.loc[i,'Rate of Leaf Growth']
                     else:
                         if dry_matter.loc[i,'Leaf Active Area'] != leaf_data.loc[i if i < 11 else 11,'Max Leaf Area']:
-                            if dry_matter.loc[i,'Leaf Active Area'] + max(row['Daily Degree Days'],0) * dry_matter['Rate of Leaf Growth'][i] > leaf_data.loc[i if i < 11 else 11,'Max Leaf Area']:
+                            if dry_matter.loc[i,'Leaf Active Area'] + max(row['Daily Degree Days'],0) * dry_matter.loc[i,'Rate of Leaf Growth'] > leaf_data.loc[i if i < 11 else 11,'Max Leaf Area']:
                                 dry_matter.loc[i,'Leaf Active Area'] = leaf_data.loc[i if i < 11 else 11,'Max Leaf Area']
                             else:
-                                dry_matter.loc[i,'Leaf Active Area'] += max(row['Daily Degree Days'],0) * dry_matter['Rate of Leaf Growth'][i]
+                                dry_matter.loc[i,'Leaf Active Area'] += max(row['Daily Degree Days'],0) * dry_matter.loc[i,'Rate of Leaf Growth']
                         else:
                             dry_matter.loc[i,'Stage'] = 'Max Area'
                             if i < 9:
@@ -282,24 +401,25 @@ for file in os.listdir(path):
                 elif dry_matter.loc[i,'Stage'] == 'Decay':
                     if (dry_matter.loc[i,'Life Span'] - max(row['Daily Degree Days'],0)) > 0:
                         dry_matter.loc[i,'Life Span'] -= max(row['Daily Degree Days'],0)
-                        dry_matter.loc[i,'Leaf Active Area'] += max(row['Daily Degree Days'],0) * dry_matter['Rate of Leaf Growth'][i]
+                        dry_matter.loc[i,'Leaf Active Area'] += max(row['Daily Degree Days'],0) * dry_matter.loc[i,'Rate of Leaf Growth']
                     else:
                         dry_matter.loc[i,['Leaf Active Area','Stage','Rate of Leaf Growth','Life Span']] = [0,'Dead',0,0]
                 i+=1
         #Leaf Area Index
         level = 1
-        for leaf in dry_matter['Leaf Number'].values.dropna():
-            if leaf > 11:
-                leaf = 11 #Leaves above 12 have the same dimensions as leaf 12 (which has index 11)
-            LAI_z.loc[level,'Level'] = level
-            LAI_z.loc[level,'Height'] = leaf_data.loc[leaf-1,'Sheath Length'] * 1e-3 #Convert Sheath Length from mm to m
-            if LAI_z.fillna(0).loc[level,'LAI'] == 0:
-                LAI_z.loc[level,'LAI'] = LAI_z.loc[level,'LAI']+dry_matter.loc[leaf-1,'Leaf Active Area'] * 1e-6 * 250 #Convert Leaf Area from mm^2 to m^2 and 250 because paper plants/m^2
-            else:
-                LAI_z.loc[level,'LAI'] = LAI_z.loc[level-1,'LAI']+dry_matter.loc[leaf-1,'Leaf Active Area'] * 1e-6 * 250 #Convert Leaf Area from mm^2 to m^2 and 250 because paper plants/m^2
-            #Change Level?
-            if leaf_data.loc[leaf-1,'Sheath Length'] < leaf_data.loc[leaf,'Sheath Length']:
-                level += 1
+        if dry_matter['Leaf Number'].values.dropna()[-1] > 0:
+            for leaf in dry_matter['Leaf Number'].values.dropna():
+                if leaf > 11:
+                    leaf = 11 #Leaves above 12 have the same dimensions as leaf 12 (which has index 11)
+                LAI_z.loc[level,'Level'] = level
+                LAI_z.loc[level,'Height'] = leaf_data.loc[leaf-1,'Sheath Length'] * 1e-3 #Convert Sheath Length from mm to m
+                if LAI_z.fillna(0).loc[level,'LAI'] == 0:
+                    LAI_z.loc[level,'LAI'] = LAI_z.loc[level,'LAI']+dry_matter.loc[leaf-1,'Leaf Active Area'] * 1e-6 * 250 #Convert Leaf Area from mm^2 to m^2 and 250 because paper plants/m^2
+                else:
+                    LAI_z.loc[level,'LAI'] = LAI_z.loc[level-1,'LAI']+dry_matter.loc[leaf-1,'Leaf Active Area'] * 1e-6 * 250 #Convert Leaf Area from mm^2 to m^2 and 250 because paper plants/m^2
+                #Change Level?
+                if leaf_data.loc[leaf-1,'Sheath Length'] < leaf_data.loc[leaf,'Sheath Length']:
+                    level += 1
         ## Light interception and photosynthesis submodel ###
         P_g_h = pd.Series(0,range(0,24),dtype=float64)
         for i in LAI_z['Level']:
@@ -386,8 +506,8 @@ for file in os.listdir(path):
             else:
                 Assimilate_Distribution = Assimilate_Stage_Distribution.loc['DR Pre Grain']
         elif row['Stage'] == "Anthesis":
-            if Results.fillna(0).loc['No. Grains Per Ear',plant_ID] == 0:
-                Results.loc['No. Grains Per Ear',plant_ID] = ((weightDistribution.loc[index,'Ears'] / 10**-2) / (dry_matter.loc[dry_matter['#Tillers'].last_valid_index(),'#Tillers'])) #10**-2 to convert 10mg to g
+            if Results.fillna(0).loc['No. Grains Per Ear',Plant_ID] == 0:
+                Results.loc['No. Grains Per Ear',Plant_ID] = ((weightDistribution.loc[index,'Ears'] / 10**-2) / (dry_matter.loc[dry_matter['#Tillers'].last_valid_index(),'#Tillers'])) #10**-2 to convert 10mg to g
             Assimilate_Distribution = Assimilate_Stage_Distribution.loc['Anthesis']
             if assimilatePool == 0:
                 assimilatePool = 0.3 * sum(weightDistribution["Stems and Leaves"].fillna(0).values)
@@ -417,16 +537,16 @@ for file in os.listdir(path):
 
         #Results Dataframe Collection
         if row['Stage'] == 'Anthesis':
-            if weight > Results.loc['Top Weight, Anthesis (g/m^2)',plant_ID]:
-                Results.loc['Top Weight, Anthesis (g/m^2)',plant_ID] = weight
-            if Results.loc['Grain Pool, Anthesis (g/m^2)',plant_ID] == 0:
-                Results.loc['Grain Pool, Anthesis (g/m^2)',plant_ID] = assimilatePool
+            if weight > Results.loc['Top Weight, Anthesis (g/m^2)',Plant_ID]:
+                Results.loc['Top Weight, Anthesis (g/m^2)',Plant_ID] = weight
+            if Results.loc['Grain Pool, Anthesis (g/m^2)',Plant_ID] == 0:
+                Results.loc['Grain Pool, Anthesis (g/m^2)',Plant_ID] = assimilatePool
                 Results.loc['Root Weight, Anthesis (g/m^2)'] = weightDistribution['Roots']
         elif row['Stage'] == 'Maturity':
-            if weight > Results.loc['Top Weight, Maturity (g/m^2)',plant_ID]:
-                Results.loc['Top Weight, Maturity (g/m^2)',plant_ID] = weight
-            if Results.loc['Grain Pool, Maturity (g/m^2)',plant_ID] == 0 and row['Stage Sum Degree Days'] > 55:
-                Results.loc['Grain Pool, Maturity (g/m^2)',plant_ID] = assimilatePool
+            if weight > Results.loc['Top Weight, Maturity (g/m^2)',Plant_ID]:
+                Results.loc['Top Weight, Maturity (g/m^2)',Plant_ID] = weight
+            if Results.loc['Grain Pool, Maturity (g/m^2)',Plant_ID] == 0 and row['Stage Sum Degree Days'] > 55:
+                Results.loc['Grain Pool, Maturity (g/m^2)',Plant_ID] = assimilatePool
 
         #Graphing
         tillerData.append(dry_matter['N_n'].dropna().values[-1])
@@ -438,11 +558,11 @@ for file in os.listdir(path):
             peakLAI = max(peakLAI, sum(LAI_z['LAI']))
             LAIGraph.append((row['Stage Sum Degree Days'],pd.Series(LAI_z.loc[len(LAI_z['LAI'])-1,'LAI'])))
         
-        print(peakLAI)
-        print(rate_of_change_of_daylength_at_emergence)
-        print(phylochron_interval)
-        print(index)
-        print(LAI_z)    
-        print(dry_matter)
+        # print(peakLAI)
+        # print(rate_of_change_of_daylength_at_emergence)
+        # print(phylochron_interval)
+        # print(index)
+        # print(LAI_z)    
+        # print(dry_matter)
     plot_list_values(LAIGraph,pd.Series('Peak'))
 print(Results)

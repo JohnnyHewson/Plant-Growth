@@ -1,12 +1,12 @@
 import pandas as pd
-from math import cos, pi, sin, asin, acos, tan
+from math import cos, pi, sin, asin, acos, tan, radians
 import datetime
 import os
 
 #Load the stage timings and temperature data
 project_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..\\..'))
 print(project_path)
-stage_timings = pd.read_csv(os.path.join(project_path, 'Data', 'Raw','Stage Timings.csv'))
+stage_timings = pd.read_csv(os.path.join(project_path, 'Data', 'Raw','Seedings Dates.csv'))
 print(stage_timings)
 
 thermal_data = pd.read_csv(os.path.join(project_path, 'Data', 'Raw','Temperature 1978-1981.csv'))
@@ -59,8 +59,8 @@ def calculate_thermal_time(T_min, T_max, T_base):
 def calculate_photoperiod(lat, date):
     Jday = date.timetuple().tm_yday
     theta1 = 2 * pi * ((Jday - 80) / 365)
-    #theta2 = 0.0335 * (sin(2 * pi * (Jday/ 365)) - sin(2 * pi * (80/ 365))) 
-    theta = theta1 #+ theta2
+    theta2 = 0.0335 * (sin(2 * pi * (Jday/ 365)) - sin(2 * pi * (80/ 365))) 
+    theta = theta1 + theta2
     Dec = asin(0.3978 * sin(theta))
     D = (-0.10453 / (cos(Dec) * cos(lat)))
     P_R = acos(D - (tan(lat) * tan(Dec)))
