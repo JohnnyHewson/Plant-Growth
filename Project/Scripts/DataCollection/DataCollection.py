@@ -23,7 +23,7 @@ end_yyyymmdd = int(f"{today.year}{today.month if len(str(today.month)) == 2 else
 
 ###Collect Data###
 #Hourly Data (Photosynthetically Active Radiation and Temperature at 2 Metres)
-hourly_start_year = 2001
+hourly_start_year = 2001 #Start of database
 start_time = time.perf_counter()
 while True:
     attempt_start = time.perf_counter()
@@ -64,7 +64,7 @@ hourly = hourly.reindex(columns=colnames)
 hourly = hourly.rename(columns={'ALLSKY_SFC_PAR_TOT':'PAR','T2M':'Temp'})
 
 #Daily Data (Daily Minimum Temperautre and Daily Maximum Temperature)
-daily_start_year = 1981
+daily_start_year = 1981 #Start of database
 start_time = time.perf_counter()
 while True:
     attempt_start = time.perf_counter()
@@ -134,11 +134,11 @@ Average_Daily_Min_Temp = daily[daily['Min Temp'] != float(-999)].groupby('JDay',
 #Maximum Temperature
 Average_Daily_Max_Temp = daily[daily['Max Temp'] != float(-999)].groupby('JDay', as_index=True)['Max Temp'].mean()
 
-# ###Save Data
-# processed_data_path = os.path.join(project_path,'Data','Processed','Average Conditions')
-# Average_Hourly_PAR.to_csv(os.path.join(processed_data_path,'Average Hourly PAR'+'.csv'),index=True,header=True)
-# Average_Hourly_Temp.to_csv(os.path.join(processed_data_path,'Average Hourly Temperature'+'.csv'),index=True,header=True)
-# Average_Daily_Min_Temp.to_csv(os.path.join(processed_data_path,'Average Daily Min Temperature'+'.csv'),index=True,header=True)
-# Average_Daily_Max_Temp.to_csv(os.path.join(processed_data_path,'Average Daily Max Temperature'+'.csv'),index=True,header=True)
+###Save Data
+processed_data_path = os.path.join(project_path,'Data','Processed','Average Conditions')
+Average_Hourly_PAR.to_csv(os.path.join(processed_data_path,'Average Hourly PAR'+'.csv'),index=True,header=True)
+Average_Hourly_Temp.to_csv(os.path.join(processed_data_path,'Average Hourly Temperature'+'.csv'),index=True,header=True)
+Average_Daily_Min_Temp.to_csv(os.path.join(processed_data_path,'Average Daily Min Temperature'+'.csv'),index=True,header=True)
+Average_Daily_Max_Temp.to_csv(os.path.join(processed_data_path,'Average Daily Max Temperature'+'.csv'),index=True,header=True)
 
-# print(f"Data saved to {processed_data_path}")
+print(f"Data saved to {processed_data_path}")

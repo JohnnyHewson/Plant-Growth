@@ -2,7 +2,7 @@ from numpy import float64
 import pandas as pd
 import datetime
 import os
-from math import acos, nan, pi, cos, radians, sin, sqrt, exp, tan, trunc
+from math import acos, pi, cos, radians, sin, sqrt, exp, tan
 import matplotlib.pyplot as plt
 
 project_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..\\..'))
@@ -60,7 +60,8 @@ with open(configdir, 'r') as config_file:
 #Leaf data from the paper (Table 1)
 leaf_data = pd.DataFrame({"Lamina Length":[125,125,125,125,125,125,245,275,310,350,395,445],
                           "Sheath Length":[0,0,0,0,0,0,120,125,125,135,145,155],
-                          "Max Leaf Area":[653,653,653,653,653,979,1797,2322,3164,3481,3988,4560]})
+                          "Max Leaf Area":[653,653,653,653,653,979,1797,2322,3164,3481,3988,4560],
+                          "Layer":[1,1,1,1,1,1,2,3,3,4,5,6]})
 
 path = os.path.join(project_path,'Data','Processed','Thermal Time')
 
@@ -269,7 +270,6 @@ for Plant_ID, date in seeding_dates.iterrows():
         #Assign Stage
         row['Stage'] = stages[stage_number]['Stage']
         plant_data.loc[index, 'Stage'] = row['Stage']
-        print(row['Stage'])
         ###Calculating Degree Days per day, per stage and overall
         #Per Day
         row['Daily Degree Days'] = calc_thermal_time(row['Max Temp'], row['Min Temp'], VDD, calc_dec(julian_day), Lat, row['Stage'], stages, affected=True)
@@ -280,7 +280,6 @@ for Plant_ID, date in seeding_dates.iterrows():
         plant_data.loc[index, 'Daily Degree Days'] = row['Daily Degree Days']
 
         #Per Stage
-        stage_Tt += row['Daily Degree Days']
         if stage_Tt + row['Daily Degree Days'] >= stages[stage_number]['Degree_Days'] and row['Stage'] != stages[-1]['Stage']: #Maturity is the last stage
             stage_number += 1
             stage_Tt = 0
@@ -406,20 +405,22 @@ for Plant_ID, date in seeding_dates.iterrows():
                         dry_matter.loc[i,['Leaf Active Area','Stage','Rate of Leaf Growth','Life Span']] = [0,'Dead',0,0]
                 i+=1
         #Leaf Area Index
-        level = 1
-        if dry_matter['Leaf Number'].values.dropna()[-1] > 0:
-            for leaf in dry_matter['Leaf Number'].values.dropna():
-                if leaf > 11:
-                    leaf = 11 #Leaves above 12 have the same dimensions as leaf 12 (which has index 11)
-                LAI_z.loc[level,'Level'] = level
-                LAI_z.loc[level,'Height'] = leaf_data.loc[leaf-1,'Sheath Length'] * 1e-3 #Convert Sheath Length from mm to m
-                if LAI_z.fillna(0).loc[level,'LAI'] == 0:
-                    LAI_z.loc[level,'LAI'] = LAI_z.loc[level,'LAI']+dry_matter.loc[leaf-1,'Leaf Active Area'] * 1e-6 * 250 #Convert Leaf Area from mm^2 to m^2 and 250 because paper plants/m^2
-                else:
-                    LAI_z.loc[level,'LAI'] = LAI_z.loc[level-1,'LAI']+dry_matter.loc[leaf-1,'Leaf Active Area'] * 1e-6 * 250 #Convert Leaf Area from mm^2 to m^2 and 250 because paper plants/m^2
-                #Change Level?
-                if leaf_data.loc[leaf-1,'Sheath Length'] < leaf_data.loc[leaf,'Sheath Length']:
-                    level += 1
+        if dry_matter['Leaf Number'].max() > 12:
+            leaf_data = pd.concat([leaf_data, pd.DataFrame([leaf_data.iloc[11]] * (dry_matter['Leaf Number'].max() - 12))], ignore_index=True)
+        if pd.notna(dry_matter.loc[0,'Leaf Number']):
+            #Get the layers that the leaves fulfill
+            unique_layers = leaf_data.loc[:dry_matter['Leaf Number'].last_valid_index(), 'Layer'].unique()
+            #Create a dataframe of the new info
+            new_rows = pd.DataFrame({'Level': unique_layers})
+            new_rows['Height'] = leaf_data['Sheath Length'].unique()[:len(unique_layers)] * 1e-3 #Convert Sheath Length from mm to m
+            #This line creates a series of the cummulative sum of the current leaf areas, then using the index that it gets from the last row of the leaf data dataframe for each layer, it gets the cummulative leaf area up to an including each level
+            new_rows['LAI'] = dry_matter['Leaf Active Area'].cumsum()[(min(dry_matter['Leaf Number'].last_valid_index(),i) for i in leaf_data[:dry_matter['Leaf Number'].max()].groupby('Layer').tail(1).index)].reset_index(drop=True) * 1e-6 * 250 #Convert Leaf Area from mm^2 to m^2 and 250 because paper plants/m^2
+            #Re-add canopy layer
+            new_rows.index += 1
+            new_rows.loc[0] = [0,0,0]
+            #Overwrite LAI_z
+            LAI_z = new_rows.sort_index()
+
         ## Light interception and photosynthesis submodel ###
         P_g_h = pd.Series(0,range(0,24),dtype=float64)
         for i in LAI_z['Level']:
@@ -442,7 +443,7 @@ for Plant_ID, date in seeding_dates.iterrows():
                     H += 1
                 #Qp is the intensity of PAR at a given layer
                 try:
-                    if LAI_z.loc[i,'Level'] != 0:
+                    if i != 0:
                         Qp = ((Qp*k)/(1-m))*exp((-k)*(LAI_z.loc[i-1,'LAI']))
                     else:
                         Qp = j
@@ -548,21 +549,20 @@ for Plant_ID, date in seeding_dates.iterrows():
             if Results.loc['Grain Pool, Maturity (g/m^2)',Plant_ID] == 0 and row['Stage Sum Degree Days'] > 55:
                 Results.loc['Grain Pool, Maturity (g/m^2)',Plant_ID] = assimilatePool
 
-        #Graphing
-        tillerData.append(dry_matter['N_n'].dropna().values[-1])
-        if row['Stage'] == 'Double Ridge':
-            if NnPeak.empty:
-                NnPeak = dry_matter['N_n']
-            tillerSurvival.append((row['Stage Sum Degree Days'],dry_matter['Proportion Surviving'].dropna()))
-        if len(LAI_z['LAI'])>1:
-            peakLAI = max(peakLAI, sum(LAI_z['LAI']))
-            LAIGraph.append((row['Stage Sum Degree Days'],pd.Series(LAI_z.loc[len(LAI_z['LAI'])-1,'LAI'])))
+        # #Graphing
+        # tillerData.append(dry_matter['N_n'].dropna().values[-1])
+        # if row['Stage'] == 'Double Ridge':
+        #     if NnPeak.empty:
+        #         NnPeak = dry_matter['N_n']
+        #     tillerSurvival.append((row['Stage Sum Degree Days'],dry_matter['Proportion Surviving'].dropna()))
+        # if len(LAI_z['LAI'])>1:
+        #     peakLAI = max(peakLAI, sum(LAI_z['LAI']))
+        #     LAIGraph.append((row['Stage Sum Degree Days'],pd.Series(LAI_z.loc[len(LAI_z['LAI'])-1,'LAI'])))
         
-        # print(peakLAI)
-        # print(rate_of_change_of_daylength_at_emergence)
-        # print(phylochron_interval)
-        # print(index)
-        # print(LAI_z)    
-        # print(dry_matter)
-    plot_list_values(LAIGraph,pd.Series('Peak'))
+        print("=====================")
+        print(row[['Stage','Stage Sum Degree Days']])
+        print(dry_matter[['Cohort','#Tillers','Leaf Number','Leaf Active Area']])
+        print(LAI_z)
+
+    #plot_list_values(LAIGraph,pd.Series('Peak'))
 print(Results)
