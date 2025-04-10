@@ -5,7 +5,7 @@
     <ProjectGuid>99d5cadd-a299-4fcb-ac62-b5715e65b1c3</ProjectGuid>
     <ProjectHome>
     </ProjectHome>
-    <StartupFile>Simulation.py</StartupFile>
+    <StartupFile>Sim Old.py</StartupFile>
     <SearchPath>
     </SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
@@ -22,6 +22,7 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="Sim Old.py" />
     <Compile Include="Simulation.py" />
     <Compile Include="Thermal Time.py" />
   </ItemGroup>
