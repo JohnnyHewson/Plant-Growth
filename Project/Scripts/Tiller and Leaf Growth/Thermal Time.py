@@ -5,13 +5,10 @@ import os
 
 #Load the stage timings and temperature data
 project_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..\\..'))
-print(project_path)
 stage_timings = pd.read_csv(os.path.join(project_path, 'Data', 'Raw','Seedings Dates.csv'))
-print(stage_timings)
 
 thermal_data = pd.read_csv(os.path.join(project_path, 'Data', 'Raw','Temperature 1978-1981.csv'))
 thermal_data['Date'] = pd.to_datetime(thermal_data['Date'])
-print(thermal_data)
 #Load stage details from config.txt
 stages = []
 configdir = os.path.join(project_path, 'config.txt')
@@ -39,17 +36,20 @@ V_base = 8
 
 #Function to calculate daily thermal time (degree days)
 def calculate_thermal_time(T_min, T_max, T_base):
+    T_min = max(T_min,0)
+    T_max = max(T_max,0)
+    T_base = max(T_base,0)
     T_opt = 26
     TD_max = 37
     T_t = 0
     for r in range(1, 9):
-        f_r = (1 / 2) * (1 + cos(((90 * (pi / 180)) / 8) * ((2 * r) - 1)))
+        f_r = (1 / 2) * (1 + cos(radians((90 / 8) * ((2 * r) - 1))))
         T_H = max(T_min + f_r * (T_max - T_min), 0)  #Degree Celsius
         if T_H < T_opt:
             T_t += T_H - T_base
         elif T_H == T_opt:
             T_t += T_opt - T_base
-        elif T_H < TD_max:
+        elif T_opt < TD_max:
             T_t += (T_opt - T_base) * ((TD_max - T_H) / (TD_max - T_opt))
         else:
             T_t += 0
@@ -62,25 +62,27 @@ def calculate_photoperiod(lat, date):
     theta2 = 0.0335 * (sin(2 * pi * (Jday/ 365)) - sin(2 * pi * (80/ 365))) 
     theta = theta1 + theta2
     Dec = asin(0.3978 * sin(theta))
-    D = (-0.10453 / (cos(Dec) * cos(lat)))
+    D = (-0.10453 / (cos(lat) * cos(Dec)))
     P_R = acos(D - (tan(lat) * tan(Dec)))
     return 24 * (P_R / pi)
 
 #Function to calculate vernalization (VDD)
 def calculate_vernalization(T_min,T_max):
-        V_eff = 0
-        for r in range(1, 9):
-            f_r = (1 / 2) * (1 + cos((90 / 8) * (2 * r - 1) * pi / 180))
-            T_H = max(T_min + f_r * (T_max - T_min), 0)
-            if -4 <= T_H < 3:
-                V_eff += (T_H + 4) / 7
-            elif 3 <= T_H <= 10:
-                V_eff += 1
-            elif 10 < T_H <= 17:
-                V_eff += (17 - T_H) / 7
-            else:
-                V_eff += 0
-        return (1/8)*V_eff
+    T_min = max(T_min,0)
+    T_max = max(T_max,0)
+    V_eff = 0
+    for r in range(1, 9):
+        f_r = (1 / 2) * (1 + cos(radians((90 / 8) * ((2 * r) - 1))))
+        T_H = max(T_min + f_r * (T_max - T_min), 0)  #Degree Celsius
+        if -4 <= T_H < 3:
+            V_eff += (T_H + 4) / 7
+        elif 3 <= T_H <= 10:
+            V_eff += 1
+        elif 10 < T_H <= 17:
+            V_eff += (17 - T_H) / 7
+        else:
+            V_eff += 0
+    return (1/8)*V_eff
 
 #Latitude input (can be modified as needed)
 latitude = Lat * pi / 180
@@ -95,8 +97,9 @@ for index, row in stage_timings.iterrows():
     year_end = datetime.datetime(seeding_date.year + 1, 8, 31)
 
     #Initialize cumulative degree days and stage tracking
-    cumulative_PVTt = 0
+    cumulative_stage_PVTt = 0
     sum_PVTt = 0
+    sum_unaffected_Tt = 0
     VDD = 0
     current_stage_index = 0
 
@@ -119,55 +122,55 @@ for index, row in stage_timings.iterrows():
         thermal_time = calculate_thermal_time(T_min, T_max, T_base)
 
         #Calculate photoperiod (P_H)
-        P_H = calculate_photoperiod(latitude, date)
-
-        if current_stage_index == 1:
-            P_Base = 0
-        elif current_stage_index == 2:
-            P_Base = 7
-        
-        #Calculate FP and the photoperiod-affected thermal time
-        if P_H >= P_opt:
+        if current_stage_index == 0 or current_stage_index > 2:
             FP = 1
-        elif 1 <= current_stage_index < 3:
-            FP = min(max((P_H - P_Base) / (P_opt - P_Base), 0), 1)
         else:
-            FP = 1
+            P_H = calculate_photoperiod(latitude, date)
 
-        #Calculate vernalization factor (FV)       
-        VDD += calculate_vernalization(T_min,T_max)
+            if current_stage_index == 1:
+                P_Base = 0
+            elif current_stage_index == 2:
+                P_Base = 7
+        
+            #Calculate FP and the photoperiod-affected thermal time
+            if P_H >= P_opt:
+                FP = 1
+            else:
+                FP = (P_H - P_Base) / (P_opt - P_Base)
+
+        #Calculate vernalization factor (FV)
         if T_max > 30:
             VDD *= 0.5
+        VDD += calculate_vernalization(T_min,T_max)
         if current_stage_index == 1:
-            FV = min(max((VDD-V_base)/(V_sat-V_base), 0), 1)
+            FV = (VDD-V_base)/(V_sat-V_base)
         else:
             FV = 1
 
         PVTt = thermal_time * FP * FV
-        cumulative_PVTt += PVTt
+        cumulative_stage_PVTt += PVTt
         stage_days += 1
         sum_PVTt += PVTt
+        sum_unaffected_Tt += thermal_time
         #Store the daily results
         plant_results.append({
             'Date': date,
             'Stage': current_stage['Stage'],
             'Stage Length': stage_days,
             'Daily Degree Days': PVTt,
-            'Stage Sum Degree Days': cumulative_PVTt,
-            'Total Degree Days': sum_PVTt
-            # 'Unaffected Daily Thermal Time': thermal_time,
-            # 'Sum Unaffected Daily Thermal Time': sum(int(plant_id[n][6]) for n in range(len(plant_results))) + int(thermal_time)
+            'Stage Sum Degree Days': cumulative_stage_PVTt,
+            'Total Degree Days': sum_PVTt,
+            'Unaffected Daily Thermal Time': thermal_time,
+            'Sum Unaffected Daily Thermal Time': sum_unaffected_Tt
         })
 
         #Check if the current stage threshold is met
-        if cumulative_PVTt >= current_stage['Degree_Days'] and current_stage['Degree_Days'] > 0:
+        if cumulative_stage_PVTt >= current_stage['Degree_Days'] and current_stage['Degree_Days'] > 0:
             current_stage_index += 1
             if current_stage_index < len(stages):
                 current_stage = stages[current_stage_index]
-                cumulative_PVTt = 0
+                cumulative_stage_PVTt = 0
                 stage_days = 0
-            else:
-                break
 
     #Convert results to a DataFrame and save to CSV
     plant_results_df = pd.DataFrame(plant_results)

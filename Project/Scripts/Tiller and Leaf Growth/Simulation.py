@@ -85,10 +85,10 @@ Results = pd.DataFrame(index = ['Top Weight, Anthesis (g/m^2)',
 
 #Calculates T_H for Thermal Time and Vernalized Degree Days Calculations
 def calc_T_H(T_max, T_min, r):
-    f_r = (1/2) * (1 + cos(radians(90 / 8) * ((2 * r) - 1)))
-    T_H = T_min + f_r * (T_max - T_min)
+    f_r = (1 / 2) * (1 + cos((90 / 8) * (2 * r - 1) * pi / 180))
+    T_H = max(T_min + f_r * (T_max - T_min), 0)  # Degree Celsius
 
-    return max(T_H, 0)
+    return T_H
 
 #Calculates Un/affected Thermal Time (Celcius)
 def calc_thermal_time(T_min, T_max, VDD, declination, latitude, current_stage, stages, affected):
@@ -96,7 +96,10 @@ def calc_thermal_time(T_min, T_max, VDD, declination, latitude, current_stage, s
     T_max = max(T_max,0)
     T_opt = 26
     TD_max = 37
-    T_base = next(dic['T_Base'] for dic in stages if current_stage == dic['Stage'])
+    if affected:
+        T_base = next(dic['T_Base'] for dic in stages if current_stage == dic['Stage'])
+    else:
+        T_base = 0
 
     T_t = 0
     for r in range(1, 9):
@@ -105,7 +108,7 @@ def calc_thermal_time(T_min, T_max, VDD, declination, latitude, current_stage, s
             T_t += T_H - T_base
         elif T_H == T_opt:
             T_t += T_opt - T_base
-        elif T_H < TD_max:
+        elif T_opt < TD_max:
             T_t += (T_opt - T_base) * (TD_max - T_H) / (TD_max - T_opt)
         else:
             T_t += 0
@@ -119,11 +122,11 @@ def calc_thermal_time(T_min, T_max, VDD, declination, latitude, current_stage, s
 
 def calc_FP(declination, latitude, current_stage):
     #FP only affects thermal time during Emergence and Double Ridge
-    if current_stage in ["Seeding", "Anthesis", "Maturity"]:
+    if current_stage not in ["Emergence", "Double Ridge"]:
         return 1
     elif current_stage == "Double Ridge":
         P_base = 7
-    else:
+    elif current_stage == "Emergence":
         P_base = 0
     P_opt = 20
     latitude = radians(latitude)
@@ -133,10 +136,10 @@ def calc_FP(declination, latitude, current_stage):
     P_H = P_R * (24/pi)
     FP = (P_H - P_base) / (P_opt - P_base)
 
-    return FP
+    return min(max(FP,0),1)
 
 def calc_FV(current_stage, VDD):
-    if current_stage in ["Seeding", "Double Ridge", "Anthesis", "Maturity"]:
+    if current_stage != "Emergence":
         return 1
     else:
         V_base = 8
@@ -144,7 +147,7 @@ def calc_FV(current_stage, VDD):
 
         FV = (VDD - V_base) / (V_sat - V_base)
 
-        return FV
+        return min(max(FV,0),1)
 
 def calc_VDD(T_max, T_min, VDD):
     T_min = max(T_min,0)
@@ -180,11 +183,11 @@ def calc_RoCoDLatE(latitude, declination):
     tilt_of_earth = 23.44 * (pi / 180) #Converts to radians
     radians_per_day = 2*pi * (1 / 365.25)
 
-    latitude_rad = radians(latitude)
+    latitude = radians(latitude)
     declination_rate = (tilt_of_earth * radians_per_day * sin(radians_per_day * (julian_day + 10)))
 
-    numerator = cos(declination) * sin(latitude_rad)
-    denominator = sqrt((1 - (sin(latitude_rad) * sin(declination)))**2)
+    numerator = cos(declination) * sin(latitude)
+    denominator = sqrt((1 - (sin(latitude) * sin(declination)))**2)
     
     if denominator == 0:
         return 0.0
@@ -273,11 +276,13 @@ for Plant_ID, date in seeding_dates.iterrows():
         ###Calculating Degree Days per day, per stage and overall
         #Per Day
         row['Daily Degree Days'] = calc_thermal_time(row['Max Temp'], row['Min Temp'], VDD, calc_dec(julian_day), Lat, row['Stage'], stages, affected=True)
+        row['Daily Unaffected Thermal Time'] = calc_thermal_time(row['Max Temp'], row['Min Temp'], VDD, calc_dec(julian_day), Lat, row['Stage'], stages, affected=False)
         if 'Daily Degree Days' in plant_data:
             if index > 1 and row['Stage'] != plant_data.loc[index - 1, 'Stage']:
                 #Add the leftover degree days from the last stage if the stage changes
                 row['Daily Degree Days'] += (plant_data.loc[index - 2, 'Stage Sum Degree Days'] + plant_data.loc[index - 1, 'Daily Degree Days'] - stages[stage_number - 1]['Degree_Days'])
         plant_data.loc[index, 'Daily Degree Days'] = row['Daily Degree Days']
+        plant_data.loc[index, 'Daily Unaffected Thermal Time'] = row['Daily Unaffected Thermal Time']
 
         #Per Stage
         if stage_Tt + row['Daily Degree Days'] >= stages[stage_number]['Degree_Days'] and row['Stage'] != stages[-1]['Stage']: #Maturity is the last stage
@@ -292,6 +297,9 @@ for Plant_ID, date in seeding_dates.iterrows():
         # Step 4: Calculate Total Degree Days
         Total_Tt += row['Daily Degree Days']
         plant_data.loc[index, 'Total Degree Days'] = Total_Tt
+        if index > 0:
+            if plant_data.loc[index, 'Total Degree Days'] < plant_data.loc[index-1, 'Total Degree Days']:
+                raise #302
         row['Total Degree Days'] = plant_data.loc[index, 'Total Degree Days']
 
         #Calculating VDD as its cumulative starting from germination
@@ -306,7 +314,7 @@ for Plant_ID, date in seeding_dates.iterrows():
             #Rate of new leaves
             if rate_of_change_of_daylength_at_emergence == 0:
                 rate_of_change_of_daylength_at_emergence = calc_RoCoDLatE(Lat, calc_dec(julian_day))
-                rate_of_leaf_appearance_per_degree_day = 0.025 * rate_of_change_of_daylength_at_emergence + 0.0104
+                rate_of_leaf_appearance_per_degree_day = (0.025 * rate_of_change_of_daylength_at_emergence) + 0.0104
                 phylochron_interval = 1/rate_of_leaf_appearance_per_degree_day
 
             #Growing first 3 leaves
@@ -315,10 +323,12 @@ for Plant_ID, date in seeding_dates.iterrows():
                 dry_matter.loc[new_leaves,['Leaf Active Area','Stage','Rate of Leaf Growth']] = [0,'Grow',leaf_data.loc[new_leaves if new_leaves < 11 else 11,"Max Leaf Area"] * rate_of_leaf_appearance_per_degree_day/1.8] #Leaves above 12 have the same dimensions as leaf 12 (which has index 11)
                 successive_leaf_thermal_time = offset_total_thermal_time
                 new_leaves += 1
-
+            
+            #Growing tillers once there are 3 leaves
             if dry_matter['Leaf Number'].values.max() >= 3:
                 week_day += 1
                 new_tillers += max(row['Mean Temp'],0) * TPr * 250
+                print(new_tillers)
                 dry_matter.loc[number_of_cohorts,['Cohort','#Tillers']] = [number_of_cohorts+1,new_tillers+dry_matter.loc[number_of_cohorts-1,'N_n'] if number_of_cohorts > 0 else new_tillers]
                 if number_of_cohorts == 0:
                     dry_matter.loc[number_of_cohorts,'N_n'] = 0
@@ -327,7 +337,7 @@ for Plant_ID, date in seeding_dates.iterrows():
                 if week_day == 7:
                     number_of_cohorts += 1
                     week_day = 0
-                    new_tillers = 0
+                    #new_tillers = 0
         elif row['Stage'] == 'Double Ridge':
             offset_total_thermal_time += row['Daily Degree Days']
             #Letting last week of growth in emergence phase be counted
@@ -564,6 +574,8 @@ for Plant_ID, date in seeding_dates.iterrows():
         print(dry_matter[['Cohort','#Tillers','Leaf Number','Leaf Active Area']])
         print(LAI_z)
 
-    raise #just for testing without having to do all 6 plantings
+    plant_data['Sum Unaffected Daily Thermal Time'] = plant_data['Daily Unaffected Thermal Time'].cumsum()
+    plant_data[['Date','Total Degree Days','Sum Unaffected Daily Thermal Time']].to_csv(os.path.join(project_path,'Data','Processed','Thermal Time',f'{Plant_ID}.csv'),index=False)
+    #raise #just for testing without having to do all 6 plantings
     #plot_list_values(LAIGraph,pd.Series('Peak'))
 print(Results)
