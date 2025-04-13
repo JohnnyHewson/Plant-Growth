@@ -4,7 +4,8 @@
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>f82e58bc-4b2a-4228-b427-6c1cd9bd82bb</ProjectGuid>
     <ProjectHome>.</ProjectHome>
-    <StartupFile>ThermalTimeComparison.py</StartupFile>
+    <StartupFile>
+    </StartupFile>
     <SearchPath>
     </SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
@@ -24,8 +25,6 @@
     <Compile Include="StageTimings.py" />
     <Compile Include="PARGraph.py" />
     <Compile Include="ThermalTimeComparison.py" />
-    <Compile Include="AffectedTtGraph.py" />
-    <Compile Include="TtGraphing.py" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
   <!-- Uncomment the CoreCompile target to enable the Build command in

@@ -27,7 +27,6 @@ for file in os.listdir(path):
 df = pd.DataFrame(data)
 df['start'] = pd.to_datetime(df['start'])
 df['end'] = pd.to_datetime(df['end'])
-print(df)
 
 # Normalize dates to same synthetic year: Sept 1 -> Aug 31 of next year
 def normalize_date(date):
@@ -80,7 +79,7 @@ ax.set_yticks(range(len(datasets)))
 ax.set_yticklabels(datasets)
 
 # Labels and title
-ax.set_title("Growing Stages Timeline (Normalized to Sept-Aug)")
+ax.set_title("Growing Stages Timeline")
 ax.set_xlabel("Month")
 ax.set_ylabel("Dataset")
 

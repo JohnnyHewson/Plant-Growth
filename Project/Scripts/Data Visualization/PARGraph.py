@@ -9,11 +9,12 @@ project_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..\\..')
 par_path = os.path.join(project_path,'Data','Processed','Average Conditions','Average Hourly Par.csv')
 par_data = pd.read_csv(par_path, index_col=0)
 
-# Clean column names (convert to integers)
-par_data.columns = par_data.columns.astype(int)
-
 # Conversion factor: 1 W/m^2 for 1 hour = 3.6 kJ/m^2 = 0.0036 MJ/m^2
 W_TO_MJ_CONVERSION = 3600 / 1e6  # (seconds/hour / J/MJ)
+
+# Clean column names (convert to integers)
+par_data.columns = par_data.columns.astype(int)
+par_data = par_data * W_TO_MJ_CONVERSION
 
 # Create coordinate grids
 X = np.arange(25)  # Hours 0-24 (needs +1 for pcolormesh boundaries)
@@ -24,10 +25,10 @@ plt.figure(figsize=(12, 8))
 plt.pcolormesh(X, Y, par_data.values,
                shading='flat',
                cmap='viridis')
-plt.colorbar(label='PAR (micromol/m^2/s)')
+plt.colorbar(label='PAR (MJ/m^2)')
 plt.xlabel('Hour of the Day')
 plt.ylabel('Day of the Year')
-plt.title('Daily Average Hourly PAR')
+plt.title('Average Hourly PAR')
 plt.xticks(np.arange(0, 25, 3))
 plt.yticks(np.arange(0, 367, 50))
 plt.gca().invert_yaxis()
@@ -39,23 +40,22 @@ daily_cumulative = par_data.sum(axis=1)
 plt.figure(figsize=(12, 6))
 plt.plot(np.arange(1, len(par_data) + 1), daily_cumulative)
 plt.xlabel('Day of the Year')
-plt.ylabel('Cumulative PAR (micromol/m^2/s)')
-plt.title('Daily Cumulative PAR Over the Year')
+plt.ylabel('Cumulative PAR (MJ/m^2)')
+plt.title('Average Daily PAR')
 plt.grid(True)
 plt.xlim(1, len(par_data))
 plt.xticks(np.arange(0, 367, 50))
 plt.tight_layout()
 
 # Calculate and plot running total in MJ/m^2
-hourly_mj = par_data * W_TO_MJ_CONVERSION  # Convert to MJ/m^2/hour
-daily_sums = hourly_mj.sum(axis=1)
+daily_sums = par_data.sum(axis=1)
 running_total = daily_sums.cumsum()
 
 plt.figure(figsize=(12, 6))
 plt.plot(np.arange(1, len(par_data) + 1), running_total, color='darkgreen')
 plt.xlabel('Day of the Year')
 plt.ylabel('Cumulative PAR (MJ/m^2)')
-plt.title('Annual Cumulative PAR Running Total')
+plt.title('Average Annual PAR')
 plt.grid(True)
 plt.xlim(1, len(par_data))
 plt.xticks(np.arange(0, len(par_data)+1, 50))
