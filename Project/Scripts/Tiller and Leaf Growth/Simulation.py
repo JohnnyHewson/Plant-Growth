@@ -575,7 +575,7 @@ for Plant_ID, date in seeding_dates.iterrows():
         #     tillerSurvival.append((row['Stage Sum Degree Days'],dry_matter['Proportion Surviving'].dropna()))
         if LAI_z.empty is False:
             peakLAI = max(peakLAI, LAI_z['LAI'].values[-1])
-            LAIGraph.append((row['Total Degree Days'],peakLAI))
+            LAIGraph.append((index,LAI_z['LAI'].values[-1]))
         
         print("=====================")
         print(row[['Date','Stage','Stage Sum Degree Days']])
