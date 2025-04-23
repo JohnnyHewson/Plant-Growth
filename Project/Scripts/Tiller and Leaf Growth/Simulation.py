@@ -1,3 +1,6 @@
+#When printing the dry_matter dataframe, expect to see NA results, that is not an issue
+#I should have separated the tiller growth and the leaf growth initially, but alas, here we are
+
 from numpy import float64
 import pandas as pd
 import datetime
@@ -588,7 +591,6 @@ for Plant_ID, date in seeding_dates.iterrows():
     plant_data['Sum Unaffected Daily Thermal Time'] = plant_data['Daily Unaffected Thermal Time'].cumsum()
     plant_data[['Date','Stage','Total Degree Days','Sum Unaffected Daily Thermal Time']].to_csv(os.path.join(project_path,'Data','Processed','Thermal Time',f'{Plant_ID}.csv'),index=False)
     #raise #just for testing without having to do all 6 plantings
-    #plot_tillers(tillerSurvival,NnPeak)
     LAIGraphList.append((Plant_ID,LAIGraph))
 plot_peakLAI(LAIGraphList)
 

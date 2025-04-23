@@ -22,9 +22,9 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="Sim Old.py" />
+    <Compile Include="Old Simulation.py" />
     <Compile Include="Simulation.py" />
-    <Compile Include="Thermal Time.py" />
+    <Compile Include="Old Thermal Time Calculation.py" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
   <!-- Uncomment the CoreCompile target to enable the Build command in
