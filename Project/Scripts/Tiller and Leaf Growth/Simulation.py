@@ -274,7 +274,6 @@ for Plant_ID, date in seeding_dates.iterrows():
     max_tillers = 0
     week_day = 0
     number_of_cohorts = 0
-    earGrowth = False
     assimilatePool = 0
     NnPeak = pd.Series()
     peakLAI = 0
@@ -381,7 +380,7 @@ for Plant_ID, date in seeding_dates.iterrows():
                 dry_matter.loc[new_leaves-1,'Leaf Number'] = new_leaves
                 dry_matter.loc[new_leaves-1,['Leaf Active Area','Stage','Rate of Leaf Growth']] = [0,'Grow',leaf_data.loc[new_leaves-1 if new_leaves-1 < 11 else 11,"Max Leaf Area"] * rate_of_leaf_appearance_per_degree_day/1.8] #Leaves above 12 have the same dimensions as leaf 12 (which has index 11)
                 new_leaves += 1
-        #Leaf Growth
+        #Leaf Growth: phyllochron interval is met -> new leaf grows -> hits max size (max size is based upon leaf number given in secondary paper) -> remains at max size for ~67% of senescence period -> decays to 0 area by the end of senescence period
         if dry_matter['Rate of Leaf Growth'].values.max() != 0:
             i=0
             for area in dry_matter['Leaf Active Area']:
@@ -443,8 +442,9 @@ for Plant_ID, date in seeding_dates.iterrows():
             #Overwrite LAI_z
             LAI_z = new_rows.sort_index()
 
-        ## Light interception and photosynthesis submodel ###
-        P_g_h = pd.Series(0,range(0,24),dtype=float64)
+        ### Light interception and photosynthesis submodel ###
+        #For this section I use average hourly PAR from what data I could for the area so is likely a source of error
+        P_g_h = pd.Series(0,range(0,24),dtype=float64) #Respiration at each out of day
         for i in LAI_z['Level']:
             Photosynthesis.loc[i,'Level (z)'] = i
             H = 0
@@ -484,13 +484,14 @@ for Plant_ID, date in seeding_dates.iterrows():
                     #with max temp at 13:00 and min temp in hour last hour without sunlight
                 else:
                     P_max = 0
+                #This is solely to estimate hourly temperature data to try and match paper's results as i can only only find daily temperature data
                 if hour < sunrise:
                     T_h = ((plant_data.loc[index-1,'Max Temp']-row['Min Temp'])/2)*cos(((hour-12)*pi)/(24-(13-sunrise))) + ((plant_data.loc[index-1,'Max Temp']+row['Min Temp'])/2)
                 elif sunrise <= hour and hour <= 13:
                     T_h = ((row['Max Temp']-row['Min Temp'])/2)*sin(((hour-0.5)*pi)/(13-sunrise)) + ((row['Max Temp']+row['Min Temp'])/2)
                 else:
                     T_h = ((row['Max Temp']-plant_data.loc[index+1 if index+1 < len(plant_data['Date']) else index,'Min Temp'])/2)*cos(((hour-12)*pi)/(24-(13-sunrise))) + ((row['Max Temp']+plant_data.loc[index+1 if index+1 < len(plant_data['Date']) else index,'Min Temp'])/2)
-                #P_g is summed of daylight hours
+                #P_g is summed over daylight hours
                 if Qp != 0:
                     #P_m is the temperature-dependent maximum photosynthetic rate
                     P_m = (0.044*6*(10**9)*(T_h+273.15)*exp((-1*dH_1)/(1.987*(T_h+273.15))))/(1+(exp((-1*dH_2)/(1.987*(T_h+273.15))))*(exp(dS/1.987)))
@@ -505,11 +506,12 @@ for Plant_ID, date in seeding_dates.iterrows():
                 #Summing P_g for each layer for daily gross total
                 P_g_h[hour]+=P_g*3600/1000 #Converting from per mg of CO2/sec to g of CO2/hour
                 hour += 1
+        #This section could be a misunderstanding of respiration calculations
         if row['Stage'] in ['Emergence','Double Ridge']:
-            mrc = mrc_e2a
+            mrc = mrc_e2a #Maintenance Respiration Contant during emergence and double ridge
         elif row['Stage'] in ['Anthesis','Maturity']:
-            mrc = mrc_a2m
-        weight = sum(sum(weightDistribution.fillna(0).values))
+            mrc = mrc_a2m #Maintenance Respiration Contant during anthesis and maturity
+        weight = sum(sum(weightDistribution.fillna(0).values)) #Sum weight for respiration calc
         growthRespiration = 0.65*grc*sum(P_g_h)
         maintenanceRespiration = weight*mrc*(2**(0.05*(row['Max Temp']+row['Min Temp'])))
         netRespiration = growthRespiration + maintenanceRespiration
@@ -524,8 +526,7 @@ for Plant_ID, date in seeding_dates.iterrows():
         elif row['Stage'] == "Emergence":
             Assimilate_Distribution = Assimilate_Stage_Distribution.loc['Emergence']
         elif row['Stage'] == "Double Ridge":
-            if row['Stage Sum Degree Days'] >= 200:
-                earGrowth = True
+            if row['Stage Sum Degree Days'] >= 200: #Ear growth starts
                 Assimilate_Distribution = Assimilate_Stage_Distribution.loc['DR Grain']
                 weightDistribution.loc[index,'Ears'] = Assimilate_Distribution['Ears'] * netAssimilate
             else:
@@ -534,9 +535,9 @@ for Plant_ID, date in seeding_dates.iterrows():
             if Results.fillna(0).loc['No. Grains Per Ear',Plant_ID] == 0:
                 Results.loc['No. Grains Per Ear',Plant_ID] = ((weightDistribution.loc[index,'Ears'] / 10**-2) / (dry_matter.loc[dry_matter['#Tillers'].last_valid_index(),'#Tillers'])) #10**-2 to convert 10mg to g
             Assimilate_Distribution = Assimilate_Stage_Distribution.loc['Anthesis']
-            if assimilatePool == 0:
+            if assimilatePool == 0: #Assimilate pool is created at the start of anthesis
                 assimilatePool = 0.3 * sum(weightDistribution["Stems and Leaves"].fillna(0).values)
-            if row['Stage Sum Degree Days'] <= 55:
+            if row['Stage Sum Degree Days'] <= 55: #Assimialte pools grows initially before use
                 assimilatePool += netAssimilate
             elif row['Stage Sum Degree Days'] <= 295:
                 G_Max = ((0.045 * (row['Max Temp'] + row['Min Temp'])) / 2) + 0.4
@@ -549,14 +550,19 @@ for Plant_ID, date in seeding_dates.iterrows():
         #This submodel acts as a assimilate sink so i chose not to properly code it as it is pointless to do so
         root_assimilate = netAssimilate * Assimilate_Distribution['Root']
         TR = max(0.2 + 0.12 * row['Mean Temp'],0)
+
         seminalSpecificWeight = 4 * (10**(-5))
         lateralSpecificWeight = 1.5 * (10**(-4))
+
         seminalAssimilate = TR * (5 * seminalSpecificWeight) #5 seminal roots
         lateralAssimilate = max(root_assimilate - seminalAssimilate,0)
+
         seminalExtension = TR*seminalAssimilate
         lateralExtension = lateralAssimilate*lateralSpecificWeight
+
         seminalWeight = seminalSpecificWeight*seminalExtension
         lateralWeight = lateralSpecificWeight*lateralExtension
+
         root_weight = seminalWeight + lateralWeight
         weightDistribution.loc[index,"Root"] = root_weight
 
