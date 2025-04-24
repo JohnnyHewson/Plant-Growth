@@ -356,14 +356,6 @@ for Plant_ID, date in seeding_dates.iterrows():
                     #new_tillers = 0
         elif row['Stage'] == 'Double Ridge':
             leaf_growth_thermal_time += row['Daily Degree Days']
-            #Calculating the proportion surviving in each Cohort
-
-            # #adding 1600 tiller cohort for testing
-            # try:
-            #     dry_matter.loc[number_of_cohorts,['Cohort','#Tillers']]
-            # except:
-            #     dry_matter.loc[number_of_cohorts,['Cohort','#Tillers']] = [number_of_cohorts+1, 1600-dry_matter.loc[number_of_cohorts-1,'N_n']]
-            #     dry_matter.loc[number_of_cohorts,'N_n'] = 1600
             
             if peak_tillers.empty:
                 peak_tillers = dry_matter['#Tillers']
