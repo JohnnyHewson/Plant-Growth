@@ -228,7 +228,6 @@ def plot_peakLAI(LAIGraphList):
     plt.tight_layout(rect=[0, 0, 1, 0.95])
     plt.show()
 
-#For testing i would recommend only have 1 file of plant data in the thermal time folder in the processed data folder
 seeding_dates = pd.read_csv(os.path.join(project_path, 'Data', 'Raw','Seedings Dates.csv'),index_col=0,header=0)
 for Plant_ID, date in seeding_dates.iterrows():
     plant_data = pd.DataFrame()
@@ -286,6 +285,7 @@ for Plant_ID, date in seeding_dates.iterrows():
     tillerSurvival = []
     LAIGraph = []
     
+    #Loops over each day of plant's life from seeding to end of growing year
     for index,row in plant_data.iterrows():
         julian_day = row['Date'].timetuple().tm_yday
         #Assign Stage
