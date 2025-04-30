@@ -7,6 +7,7 @@ import datetime
 import os
 from math import acos, pi, cos, radians, sin, sqrt, exp, tan
 import matplotlib.pyplot as plt
+import json
 
 project_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..\\..'))
 
@@ -85,6 +86,7 @@ Results = pd.DataFrame(index = ['Top Weight, Anthesis (g/m^2)',
                                 'Grain Pool, Anthesis (g/m^2)',
                                 'Grain Pool, Maturity (g/m^2)',
                                 'Root Weight, Anthesis (g/m^2)'])
+DataForGraphing = {}
 LAIGraphList = []
 
 #Calculates T_H for Thermal Time and Vernalized Degree Days Calculations
@@ -237,6 +239,7 @@ for Plant_ID, date in seeding_dates.iterrows():
     plant_data = plant_data.dropna().reset_index().drop(columns='index')
 
     Results[Plant_ID] = [0,0,0,0,0,0,0,0,0,0,0]
+    DataForGraphing.update({Plant_ID:{}})
     #Setting up Dataframes
     dry_matter = pd.DataFrame({'Cohort':[int(0)],'#Tillers':[0],'N_n':[0],'Proportion Surviving':[0],
                                'Leaf Number':[int(0)],'Leaf Active Area':[float64(0)],'Stage':[""],'Rate of Leaf Growth':[float(0)],'Life Span':[0]})
@@ -276,6 +279,7 @@ for Plant_ID, date in seeding_dates.iterrows():
     assimilatePool = 0
     NnPeak = pd.Series()
     peakLAI = 0
+    mrc = None
     #Constants for Tiller Death Proportion
     A=825
     alpha = 1.46
@@ -356,6 +360,15 @@ for Plant_ID, date in seeding_dates.iterrows():
                     #new_tillers = 0
         elif row['Stage'] == 'Double Ridge':
             leaf_growth_thermal_time += row['Daily Degree Days']
+
+            #Calculating the proportion surviving in each Cohort
+
+            # #adding 1600 tiller cohort for testing
+            # try:
+            #     dry_matter.loc[number_of_cohorts,['Cohort','#Tillers']]
+            # except:
+            #     dry_matter.loc[number_of_cohorts,['Cohort','#Tillers']] = [number_of_cohorts+1, 1600-dry_matter.loc[number_of_cohorts-1,'N_n']]
+            #     dry_matter.loc[number_of_cohorts,'N_n'] = 1600
             
             if peak_tillers.empty:
                 peak_tillers = dry_matter['#Tillers']
@@ -437,80 +450,82 @@ for Plant_ID, date in seeding_dates.iterrows():
         ### Light interception and photosynthesis submodel ###
         #For this section I use average hourly PAR from what data I could for the area so is likely a source of error
         P_g_h = pd.Series(0,range(0,24),dtype=float64) #Respiration at each out of day
-        for i in LAI_z['Level']:
-            Photosynthesis.loc[i,'Level (z)'] = i
-            H = 0
-            R = 0
-            hour = 0
-            sunrise = 0
-            for j in PAR_data.loc[julian_day]:
-                if j!= 0 and sunrise == 0:
-                    sunrise = hour
-                elif j==0 and sunrise != 0:
-                    sunset = hour
-                else:
-                    hour += 1
-            hour = 0
-            for j in PAR_data.loc[julian_day]:
-                #Counting number of daylight hours
-                if j != 0:
-                    H += 1
-                #Qp is the intensity of PAR at a given layer
-                try:
-                    if i != 0:
-                        Qp = ((Qp*k)/(1-m))*exp((-k)*(LAI_z.loc[i-1,'LAI']))
+        if sum(LAI_z['LAI']) > 0:
+            for i in LAI_z['Level']:
+                Photosynthesis.loc[i,'Level (z)'] = i
+                H = 0
+                R = 0
+                hour = 0
+                sunrise = 0
+                for j in PAR_data.loc[julian_day]:
+                    if j!= 0 and sunrise == 0:
+                        sunrise = hour
+                    elif j==0 and sunrise != 0:
+                        sunset = hour
                     else:
-                        Qp = j
-                except NameError:                 
-                    if LAI_z.loc[i,'Level'] == 0:
-                        Qp = j
-                if Qp != 0:
-                    #r_s is the stomatal resistance
-                    r_s = 1.56 * 75*(1+(100/Qp)) #*(1-0.3*D) is usually included
-                    #where D is the vapour pressure deficity however this crop is considered to be free from water stress
-                    #r_p is the total physical resistance
-                    r_p = r_a + r_s + r_m
-                    #P_max is the maximum photosynthesis rate
-                    P_max = 0.995*(C_a/r_p)
-                    #I do not have hourly temperature but I will assume it follows a trigonometric pattern between peaks
-                    #with max temp at 13:00 and min temp in hour last hour without sunlight
-                else:
-                    P_max = 0
-                #This is solely to estimate hourly temperature data to try and match paper's results as i can only only find daily temperature data
-                if hour < sunrise:
-                    T_h = ((plant_data.loc[index-1,'Max Temp']-row['Min Temp'])/2)*cos(((hour-12)*pi)/(24-(13-sunrise))) + ((plant_data.loc[index-1,'Max Temp']+row['Min Temp'])/2)
-                elif sunrise <= hour and hour <= 13:
-                    T_h = ((row['Max Temp']-row['Min Temp'])/2)*sin(((hour-0.5)*pi)/(13-sunrise)) + ((row['Max Temp']+row['Min Temp'])/2)
-                else:
-                    T_h = ((row['Max Temp']-plant_data.loc[index+1 if index+1 < len(plant_data['Date']) else index,'Min Temp'])/2)*cos(((hour-12)*pi)/(24-(13-sunrise))) + ((row['Max Temp']+plant_data.loc[index+1 if index+1 < len(plant_data['Date']) else index,'Min Temp'])/2)
-                #P_g is summed over daylight hours
-                if Qp != 0:
-                    #P_m is the temperature-dependent maximum photosynthetic rate
-                    P_m = (0.044*6*(10**9)*(T_h+273.15)*exp((-1*dH_1)/(1.987*(T_h+273.15))))/(1+(exp((-1*dH_2)/(1.987*(T_h+273.15))))*(exp(dS/1.987)))
-                    #P_g is the rate of photosynthesis, this equation uses the temperature corrected quadratic equation
-                    P_g_a=(0.995/P_max)*((1/alpha*Qp)+(1/P_m))
-                    P_g_b=(-1*((1/alpha*Qp)+(1/P_m)+(1/P_max)))
-                    P_g_c=1
-                    #Taking positive P_g ###assumption
-                    P_g = max((((-1*P_g_b)+(sqrt((P_g_b**2)-(4*P_g_a*P_g_c))))/(2*P_g_a)),(((-1*P_g_b)-(sqrt((P_g_b**2)-(4*P_g_a*P_g_c))))/(2*P_g_a)))
-                else:
-                    P_g = 0
-                #Summing P_g for each layer for daily gross total
-                P_g_h[hour]+=P_g*3600/1000 #Converting from per mg of CO2/sec to g of CO2/hour
-                hour += 1
+                        hour += 1
+                hour = 0
+                for j in PAR_data.loc[julian_day]:
+                    #Counting number of daylight hours
+                    if j != 0:
+                        H += 1
+                    #Qp is the intensity of PAR at a given layer
+                    try:
+                        if i != 0:
+                            Qp = ((Qp*k)/(1-m))*exp((-k)*(LAI_z.loc[i-1,'LAI']))
+                        else:
+                            Qp = j
+                    except NameError:                 
+                        if LAI_z.loc[i,'Level'] == 0:
+                            Qp = j
+                    if Qp != 0:
+                        #r_s is the stomatal resistance
+                        r_s = 1.56 * 75*(1+(100/Qp)) #*(1-0.3*D) is usually included
+                        #where D is the vapour pressure deficity however this crop is considered to be free from water stress
+                        #r_p is the total physical resistance
+                        r_p = r_a + r_s + r_m
+                        #P_max is the maximum photosynthesis rate
+                        P_max = 0.995*(C_a/r_p)
+                        #I do not have hourly temperature but I will assume it follows a trigonometric pattern between peaks
+                        #with max temp at 13:00 and min temp in hour last hour without sunlight
+                    else:
+                        P_max = 0
+                    #This is solely to estimate hourly temperature data to try and match paper's results as i can only only find daily temperature data
+                    if hour < sunrise:
+                        T_h = ((plant_data.loc[index-1,'Max Temp']-row['Min Temp'])/2)*cos(((hour-12)*pi)/(24-(13-sunrise))) + ((plant_data.loc[index-1,'Max Temp']+row['Min Temp'])/2)
+                    elif sunrise <= hour and hour <= 13:
+                        T_h = ((row['Max Temp']-row['Min Temp'])/2)*sin(((hour-0.5)*pi)/(13-sunrise)) + ((row['Max Temp']+row['Min Temp'])/2)
+                    else:
+                        T_h = ((row['Max Temp']-plant_data.loc[index+1 if index+1 < len(plant_data['Date']) else index,'Min Temp'])/2)*cos(((hour-12)*pi)/(24-(13-sunrise))) + ((row['Max Temp']+plant_data.loc[index+1 if index+1 < len(plant_data['Date']) else index,'Min Temp'])/2)
+                    #P_g is summed over daylight hours
+                    if Qp != 0:
+                        #P_m is the temperature-dependent maximum photosynthetic rate
+                        P_m = (0.044*6*(10**9)*(T_h+273.15)*exp((-1*dH_1)/(1.987*(T_h+273.15))))/(1+(exp((-1*dH_2)/(1.987*(T_h+273.15))))*(exp(dS/1.987)))
+                        #P_g is the rate of photosynthesis, this equation uses the temperature corrected quadratic equation
+                        P_g_a=(0.995/P_max)*((1/alpha*Qp)+(1/P_m))
+                        P_g_b=(-1*((1/alpha*Qp)+(1/P_m)+(1/P_max)))
+                        P_g_c=1
+                        #Taking positive P_g ###assumption
+                        P_g = max((((-1*P_g_b)+(sqrt((P_g_b**2)-(4*P_g_a*P_g_c))))/(2*P_g_a)),(((-1*P_g_b)-(sqrt((P_g_b**2)-(4*P_g_a*P_g_c))))/(2*P_g_a)))
+                    else:
+                        P_g = 0
+                    #Summing P_g for each layer for daily gross total
+                    P_g_h[hour]+=P_g*3600/1000 #Converting from per mg of CO2/sec to g of CO2/hour
+                    hour += 1
         #This section could be a misunderstanding of respiration calculations
         if row['Stage'] in ['Emergence','Double Ridge']:
             mrc = mrc_e2a #Maintenance Respiration Contant during emergence and double ridge
         elif row['Stage'] in ['Anthesis','Maturity']:
             mrc = mrc_a2m #Maintenance Respiration Contant during anthesis and maturity
-        weight = sum(sum(weightDistribution.fillna(0).values)) #Sum weight for respiration calc
-        growthRespiration = 0.65*grc*sum(P_g_h)
-        maintenanceRespiration = weight*mrc*(2**(0.05*(row['Max Temp']+row['Min Temp'])))
-        netRespiration = growthRespiration + maintenanceRespiration
-        weightDistribution.loc[index,['Maintenance Respiration','Growth Respiration']] = [(0.65*grc*sum(P_g_h)),weight*mrc*(2**(0.05*(row['Max Temp']+row['Min Temp'])))]
+        if mrc: #If stage is seeding then this is skipped
+            weight = sum(sum(weightDistribution.fillna(0).values)) #Sum weight for respiration calc
+            growthRespiration = 0.65*grc*sum(P_g_h)
+            maintenanceRespiration = weight*mrc*(2**(0.05*(row['Max Temp']+row['Min Temp'])))
+            netRespiration = growthRespiration + maintenanceRespiration
+            weightDistribution.loc[index,['Maintenance Respiration','Growth Respiration']] = [(0.65*grc*sum(P_g_h)),weight*mrc*(2**(0.05*(row['Max Temp']+row['Min Temp'])))]
         
                         ###Dry-matter partitioning and grain growth submodel###
-        netAssimilate = (0.65 * sum(P_g_h)) - netRespiration
+            netAssimilate = (0.65 * sum(P_g_h)) - netRespiration
         
         #Setting and calculating the assimilate distribution as well as some variables that are measured at the start of the stage for the results dataframe
         if row['Stage'] == "Seeding":
@@ -540,23 +555,24 @@ for Plant_ID, date in seeding_dates.iterrows():
 
                         ### Root Growth Submodel ###
         #This submodel acts as a assimilate sink so i chose not to properly code it as it is pointless to do so
-        root_assimilate = netAssimilate * Assimilate_Distribution['Root']
-        TR = max(0.2 + 0.12 * row['Mean Temp'],0)
+        if netAssimilate > 0:
+            root_assimilate = netAssimilate * Assimilate_Distribution['Root']
+            TR = max(0.2 + 0.12 * row['Mean Temp'],0)
 
-        seminalSpecificWeight = 4 * (10**(-5))
-        lateralSpecificWeight = 1.5 * (10**(-4))
+            seminalSpecificWeight = 4 * (10**(-5))
+            lateralSpecificWeight = 1.5 * (10**(-4))
 
-        seminalAssimilate = TR * (5 * seminalSpecificWeight) #5 seminal roots
-        lateralAssimilate = max(root_assimilate - seminalAssimilate,0)
+            seminalAssimilate = TR * (5 * seminalSpecificWeight) #5 seminal roots
+            lateralAssimilate = max(root_assimilate - seminalAssimilate,0)
 
-        seminalExtension = TR*seminalAssimilate
-        lateralExtension = lateralAssimilate*lateralSpecificWeight
+            seminalExtension = TR*seminalAssimilate
+            lateralExtension = lateralAssimilate*lateralSpecificWeight
 
-        seminalWeight = seminalSpecificWeight*seminalExtension
-        lateralWeight = lateralSpecificWeight*lateralExtension
+            seminalWeight = seminalSpecificWeight*seminalExtension
+            lateralWeight = lateralSpecificWeight*lateralExtension
 
-        root_weight = seminalWeight + lateralWeight
-        weightDistribution.loc[index,"Root"] = root_weight
+            root_weight = seminalWeight + lateralWeight
+            weightDistribution.loc[index,"Root"] = root_weight
 
         #Results Dataframe Collection
         if row['Stage'] == 'Anthesis':
@@ -572,6 +588,21 @@ for Plant_ID, date in seeding_dates.iterrows():
                 Results.loc['Grain Pool, Maturity (g/m^2)',Plant_ID] = assimilatePool
 
         #Graphing
+        GraphDataDailyUpdate = {'Total Thermal Time':row['Total Degree Days'],
+                                'Stage':row['Stage'],
+                                'Stage Sum Thermal Time':row['Stage Sum Degree Days'],
+                                'Proportion of cohort surviving':dry_matter['Proportion Surviving'].to_json(orient='records'),
+                                'Number of shoots per m^2':dry_matter['#Tillers'].to_json(orient='records'),
+                                'Number of shoots per m^2 +10% TPr':plant_data.loc[plant_data['Stage'].isin(['Emergence', 'Double Ridge']), 'Daily Degree Days'].groupby(lambda i: i // 7).apply(lambda x: x.sum() * TPr * 1.1).to_json(orient='records'),
+                                'Number of shoots per m^2 -10% TPr':plant_data.loc[plant_data['Stage'].isin(['Emergence', 'Double Ridge']), 'Daily Degree Days'].groupby(lambda i: i // 7).apply(lambda x: x.sum() * TPr * 0.9).to_json(orient='records'),
+                                'Shoot age':[
+                                        DataForGraphing[Plant_ID][index-1]['Shoot age'][i] + 1 
+                                        if i < len(DataForGraphing[Plant_ID][index-1]['Shoot age']) else 1
+                                        for i in dry_matter.loc[dry_matter['#Tillers'].notna(), '#Tillers'].index
+                                            ] if len(DataForGraphing[Plant_ID]) > 0 else [0],
+                                'LAI':LAI_z.to_json(orient='index')}
+        DataForGraphing[Plant_ID].update({index:GraphDataDailyUpdate})
+
         # tillerData.append(dry_matter['N_n'].dropna().values[-1])
         # if row['Stage'] == 'Double Ridge':
         #     if NnPeak.empty:
@@ -590,6 +621,8 @@ for Plant_ID, date in seeding_dates.iterrows():
     plant_data[['Date','Stage','Total Degree Days','Sum Unaffected Daily Thermal Time']].to_csv(os.path.join(project_path,'Data','Processed','Thermal Time',f'{Plant_ID}.csv'),index=False)
     #raise #just for testing without having to do all 6 plantings
     LAIGraphList.append((Plant_ID,LAIGraph))
-plot_peakLAI(LAIGraphList)
+#plot_peakLAI(LAIGraphList)
+with open('graph_data.json', 'w') as file:
+    json.dump(DataForGraphing, file)
 
 print(Results)
