@@ -6,7 +6,7 @@ import os
 
 data = []
 # Sample data (replace this with your actual data)
-project_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..\\..'))
+project_path = os.path.abspath(os.path.join(os.path.dirname(__file__), r'../..'))
 path = os.path.join(project_path, 'Data', 'Processed', 'Thermal Time')
 for file in os.listdir(path):
     plant_ID = file.split(' ')[0]
@@ -76,12 +76,12 @@ ax.xaxis.set_major_formatter(mdates.DateFormatter("%b"))
 
 # Y-axis setup
 ax.set_yticks(range(len(datasets)))
-ax.set_yticklabels(datasets)
+ax.set_yticklabels(str(plant).removesuffix('.csv') for plant in datasets)
 
 # Labels and title
 ax.set_title("Growing Stages Timeline")
 ax.set_xlabel("Month")
-ax.set_ylabel("Dataset")
+ax.set_ylabel("Plant ID")
 
 # Remove duplicate legend labels
 handles, labels = ax.get_legend_handles_labels()
@@ -90,4 +90,5 @@ ax.legend(by_label.values(), by_label.keys(), title="Stages")
 
 
 plt.tight_layout()
+plt.savefig(os.path.join(project_path,'Data/Graphs',f'Stage_Timings.png'))
 plt.show()

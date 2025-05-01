@@ -9,7 +9,7 @@ from math import acos, pi, cos, radians, sin, sqrt, exp, tan
 import matplotlib.pyplot as plt
 import json
 
-project_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..\\..'))
+project_path = os.path.abspath(os.path.join(os.path.dirname(__file__), r'../..'))
 
 configdir = os.path.join(project_path, 'config.txt')
 with open(configdir, 'r') as config_file:
@@ -221,6 +221,8 @@ def plot_peakLAI(LAIGraphList):
     axs = axs.flatten()
     for n,LAIGraph in enumerate(LAIGraphList):
         axs[n].plot([x for x,_ in LAIGraph[1]],[y for _,y in LAIGraph[1]])
+        axs[n].set_xticks([0,90,180,270,360])
+        axs[n].set_yticks([0,2.5,5,7.5,10])
         axs[n].set_title(f'Plant {LAIGraph[0]}')
         axs[n].set_xlabel('Thermal Time')
         axs[n].set_ylabel('Peak LAI')
@@ -228,6 +230,7 @@ def plot_peakLAI(LAIGraphList):
 
     fig.suptitle("Peak LAI vs. Thermal Time", fontsize=16)
     plt.tight_layout(rect=[0, 0, 1, 0.95])
+    plt.savefig(os.path.join(project_path,'Data/Graphs','peak_tillers.png'))
     plt.show()
 
 seeding_dates = pd.read_csv(os.path.join(project_path, 'Data', 'Raw','Seedings Dates.csv'),index_col=0,header=0)
@@ -331,7 +334,7 @@ for Plant_ID, date in seeding_dates.iterrows():
         if row['Stage'] == 'Seeding':
             continue
         elif row['Stage'] == 'Emergence':
-            leaf_growth_thermal_time += row['Daily Degree Days']
+            leaf_growth_thermal_time += row['Daily Unaffected Thermal Time']
             #Rate of new leaves
             if rate_of_change_of_daylength_at_emergence == 0:
                 rate_of_change_of_daylength_at_emergence = calc_RoCoDLatE(Lat, calc_dec(julian_day))
@@ -347,19 +350,19 @@ for Plant_ID, date in seeding_dates.iterrows():
             #Growing tillers once there are 3 leaves
             if dry_matter['Leaf Number'].values.max() >= 3:
                 week_day += 1
-                new_tillers += max(row['Mean Temp'],0) * TPr * 250
+                new_tillers += row['Daily Unaffected Thermal Time'] * TPr * 250
                 print(new_tillers)
-                dry_matter.loc[number_of_cohorts,['Cohort','#Tillers']] = [number_of_cohorts+1,new_tillers+dry_matter.loc[number_of_cohorts-1,'N_n'] if number_of_cohorts > 0 else new_tillers]
-                if number_of_cohorts == 0:
-                    dry_matter.loc[number_of_cohorts,'N_n'] = 0
-                else:
-                    dry_matter.loc[number_of_cohorts,'N_n'] = dry_matter.loc[number_of_cohorts-1,'#Tillers'] + dry_matter.loc[number_of_cohorts-1,'N_n']
+                dry_matter.loc[number_of_cohorts,['Cohort','#Tillers']] = [number_of_cohorts+1,new_tillers]
+                # if number_of_cohorts == 0:
+                #     dry_matter.loc[number_of_cohorts,'N_n'] = 0
+                # else:
+                #     dry_matter['N_n'] = dry_matter['#Tillers'].cumsum(skipna=True)
                 if week_day == 7:
                     number_of_cohorts += 1
                     week_day = 0
-                    #new_tillers = 0
+                    new_tillers = 0
         elif row['Stage'] == 'Double Ridge':
-            leaf_growth_thermal_time += row['Daily Degree Days']
+            leaf_growth_thermal_time += row['Daily Unaffected Thermal Time']
 
             #Calculating the proportion surviving in each Cohort
 
@@ -371,13 +374,13 @@ for Plant_ID, date in seeding_dates.iterrows():
             #     dry_matter.loc[number_of_cohorts,'N_n'] = 1600
             
             if peak_tillers.empty:
-                peak_tillers = dry_matter['#Tillers']
+                peak_tillers = dry_matter['#Tillers'].cumsum(skipna=True)
 
             for c in dry_matter['Cohort'].dropna():
                 if c == 1:
                     dry_matter.loc[c-1,'Proportion Surviving'] = 1
                 elif c > 1:
-                    dry_matter.loc[c-1,'Proportion Surviving'] = 1 / (1 + ((row['Stage Sum Degree Days']/400) / (A/dry_matter.loc[c-1,'N_n'])**alpha)**beta)
+                    dry_matter.loc[c-1,'Proportion Surviving'] = 1 / (1 + ((row['Stage Sum Degree Days']/400) / (A/dry_matter['#Tillers'].cumsum(skipna=True).loc[c-1])**alpha)**beta)
             
             dry_matter['#Tillers'] = peak_tillers.mul(dry_matter['Proportion Surviving'])
             #Grow Leaves
@@ -588,19 +591,20 @@ for Plant_ID, date in seeding_dates.iterrows():
                 Results.loc['Grain Pool, Maturity (g/m^2)',Plant_ID] = assimilatePool
 
         #Graphing
+        if LAI_z.empty is False:
+            LAIGraph.append((index,LAI_z['LAI'].values[-1]))
+
         GraphDataDailyUpdate = {'Total Thermal Time':row['Total Degree Days'],
                                 'Stage':row['Stage'],
                                 'Stage Sum Thermal Time':row['Stage Sum Degree Days'],
-                                'Proportion of cohort surviving':dry_matter['Proportion Surviving'].to_json(orient='records'),
-                                'Number of shoots per m^2':dry_matter['#Tillers'].to_json(orient='records'),
-                                'Number of shoots per m^2 +10% TPr':plant_data.loc[plant_data['Stage'].isin(['Emergence', 'Double Ridge']), 'Daily Degree Days'].groupby(lambda i: i // 7).apply(lambda x: x.sum() * TPr * 1.1).to_json(orient='records'),
-                                'Number of shoots per m^2 -10% TPr':plant_data.loc[plant_data['Stage'].isin(['Emergence', 'Double Ridge']), 'Daily Degree Days'].groupby(lambda i: i // 7).apply(lambda x: x.sum() * TPr * 0.9).to_json(orient='records'),
+                                'Proportion of cohort surviving':dry_matter['Proportion Surviving'].dropna().to_json(orient='records'),
+                                'Number of shoots per m^2':dry_matter['#Tillers'].dropna().to_json(orient='records'),
                                 'Shoot age':[
                                         DataForGraphing[Plant_ID][index-1]['Shoot age'][i] + 1 
                                         if i < len(DataForGraphing[Plant_ID][index-1]['Shoot age']) else 1
-                                        for i in dry_matter.loc[dry_matter['#Tillers'].notna(), '#Tillers'].index
-                                            ] if len(DataForGraphing[Plant_ID]) > 0 else [0],
-                                'LAI':LAI_z.to_json(orient='index')}
+                                        for i in range(len(dry_matter['#Tillers'].dropna()))
+                                            ] if dry_matter.loc[0,'#Tillers'] != 0 else [0],
+                                'LAI':(index,LAI_z['LAI'].values[-1]) if LAI_z.empty is False and LAI_z['LAI'].values[-1] > 0 else (index,0)}
         DataForGraphing[Plant_ID].update({index:GraphDataDailyUpdate})
 
         # tillerData.append(dry_matter['N_n'].dropna().values[-1])
@@ -608,9 +612,6 @@ for Plant_ID, date in seeding_dates.iterrows():
         #     if NnPeak.empty:
         #         NnPeak = dry_matter['N_n']
         #     tillerSurvival.append((row['Stage Sum Degree Days'],dry_matter['Proportion Surviving'].dropna()))
-        if LAI_z.empty is False:
-            peakLAI = max(peakLAI, LAI_z['LAI'].values[-1])
-            LAIGraph.append((index,LAI_z['LAI'].values[-1]))
         
         print("=====================")
         print(row[['Date','Stage','Stage Sum Degree Days']])
@@ -620,9 +621,9 @@ for Plant_ID, date in seeding_dates.iterrows():
     plant_data['Sum Unaffected Daily Thermal Time'] = plant_data['Daily Unaffected Thermal Time'].cumsum()
     plant_data[['Date','Stage','Total Degree Days','Sum Unaffected Daily Thermal Time']].to_csv(os.path.join(project_path,'Data','Processed','Thermal Time',f'{Plant_ID}.csv'),index=False)
     #raise #just for testing without having to do all 6 plantings
-    LAIGraphList.append((Plant_ID,LAIGraph))
-#plot_peakLAI(LAIGraphList)
-with open('graph_data.json', 'w') as file:
+    #LAIGraphList.append((Plant_ID,LAIGraph))
+plot_peakLAI(LAIGraphList)
+with open(os.path.join(project_path,'Data/Processed','graph_data.json'), 'w') as file:
     json.dump(DataForGraphing, file)
 
 print(Results)

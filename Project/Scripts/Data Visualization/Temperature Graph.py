@@ -4,7 +4,7 @@ import os
 import datetime
 
 # Load data
-project_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..\\..'))
+project_path = os.path.abspath(os.path.join(os.path.dirname(__file__), r'../..'))
 thermal_data_path = os.path.join(project_path, 'Data', 'Raw', 'Temperature 1978-1981.csv')
 thermal_data = pd.read_csv(thermal_data_path, encoding='utf-8', header=0)
 
@@ -54,4 +54,5 @@ for i, year in enumerate(growing_years):
     ax.legend()
 
 plt.tight_layout()
+plt.savefig(os.path.join(project_path,'Data/Graphs',f'Temperature.png'))
 plt.show()

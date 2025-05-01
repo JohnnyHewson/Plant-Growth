@@ -4,7 +4,7 @@ import os
 import datetime
 
 # Load the Interpolated Thermal Time data from the paper
-project_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..\\..'))
+project_path = os.path.abspath(os.path.join(os.path.dirname(__file__), r'../..'))
 paper_thermal_data_path = os.path.join(project_path, 'Data', 'Interpolated', 'ThermalTime_78-81_CumulativeInterpolated.csv')
 paper_thermal_data = pd.read_csv(paper_thermal_data_path, encoding='utf-8')
 
@@ -41,8 +41,8 @@ month_days = [0, 30, 61, 92, 122, 153, 183, 214, 244, 275, 305, 336]
 month_labels = ['S', 'O', 'N', 'D', 'J', 'F', 'M', 'A', 'M', 'J', 'J', 'A']
 
 # Create plot
-colors = ['red', 'green', 'blue', 'black', 'brown', 'magenta']  # List of colors
-year_colors = {plant_ID: colors[i % len(colors)] for i,plant_ID in enumerate(affected_thermal_data)}
+colors = ['red', 'green', 'blue']  # List of colors
+year_colors = {year: colors[i % len(colors)] for i,year in enumerate([1979,1980,1981])}
 
 # Stage abbreviation mapping
 stage_labels = {
@@ -55,24 +55,24 @@ stage_labels = {
 
 plt.figure(figsize=(12, 6))
 for year, group in paper_thermal_data.groupby('Growing Year'):
-    plt.plot(group['Day_of_Growing_Season'], group['Cumulative Thermal Time'], label=f'Paper {year} (Unaffected)')
+    plt.plot(group['Day_of_Growing_Season'], group['Cumulative Thermal Time'], label=f'Paper {year} (Unaffected)', color=year_colors[int(year.split('-')[1])])
 # for year, group in additional_thermal_data.groupby('Growing Year'):
 #     plt.plot(group['Day_of_Growing_Season'], group['Cumulative Thermal Time'], label=f'Calculated {year}')
 for plant_ID in unaffected_thermal_data:
     for year, group in unaffected_thermal_data[plant_ID].groupby('Growing Year'):
-        plt.plot(group['Day_of_Growing_Season'], group['Sum Unaffected Daily Thermal Time'], linestyle=':', label=f'Unaffected {plant_ID}', color=year_colors[plant_ID])
-for plant_ID in affected_thermal_data:
-    for year, group in affected_thermal_data[plant_ID].groupby('Growing Year'):
-        group = group.sort_values(by='Day_of_Growing_Season')
-        plt.plot(group['Day_of_Growing_Season'], group['Total Degree Days'], linestyle='--', label=f'Affected {plant_ID}', color=year_colors[plant_ID])
+        plt.plot(group['Day_of_Growing_Season'], group['Sum Unaffected Daily Thermal Time'], linestyle=':', label=f'Unaffected {plant_ID}', color=year_colors[int(plant_ID.removesuffix('Early' if 'Early' in plant_ID else 'Late'))])
+# for plant_ID in affected_thermal_data:
+#     for year, group in affected_thermal_data[plant_ID].groupby('Growing Year'):
+#         group = group.sort_values(by='Day_of_Growing_Season')
+#         plt.plot(group['Day_of_Growing_Season'], group['Total Degree Days'], linestyle='--', label=f'Affected {plant_ID}', color=year_colors[plant_ID])
 
-        # Find stage changes
-        stage_changes = group[group['Stage'].ne(group['Stage'].shift())]
-        for _, row in stage_changes.iterrows():
-            stage_abbr = stage_labels.get(row['Stage'], row['Stage'])  # fallback to original if not mapped
-            plt.scatter(row['Day_of_Growing_Season'], row['Total Degree Days'], color='black', zorder=5, marker='|')
-            plt.text(row['Day_of_Growing_Season'], row['Total Degree Days'] + 10, stage_abbr,
-                     fontsize=8, ha='center', va='bottom')
+#         # Find stage changes
+#         stage_changes = group[group['Stage'].ne(group['Stage'].shift())]
+#         for _, row in stage_changes.iterrows():
+#             stage_abbr = stage_labels.get(row['Stage'], row['Stage'])  # fallback to original if not mapped
+#             plt.scatter(row['Day_of_Growing_Season'], row['Total Degree Days'], color='black', zorder=5, marker='|')
+#             plt.text(row['Day_of_Growing_Season'], row['Total Degree Days'] + 10, stage_abbr,
+#                      fontsize=8, ha='center', va='bottom')
 
 plt.xticks(month_days, month_labels)
 plt.xlabel('Month')
@@ -81,4 +81,5 @@ plt.title('Cumulative Thermal Time by Growing Year')
 plt.legend()
 plt.grid(True)
 plt.tight_layout()
+plt.savefig(os.path.join(project_path,'Data/Graphs',f'ThermalTime.png'))
 plt.show()

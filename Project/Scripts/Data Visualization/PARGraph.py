@@ -5,8 +5,8 @@ import os
 
 # Load PAR data (replace 'hourly_par_data.csv' with your data file)
 # Assumes CSV format with 24 columns (0-23 hours) and 365 rows (days)
-project_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..\\..'))
-par_path = os.path.join(project_path,'Data','Processed','Average Conditions','Average Hourly Par.csv')
+project_path = os.path.abspath(os.path.join(os.path.dirname(__file__), r'../..'))
+par_path = os.path.join(project_path,'Data','Processed','Average Conditions','Average Hourly PAR.csv')
 par_data = pd.read_csv(par_path, index_col=0)
 
 # Conversion factor: 1 W/m^2 for 1 hour = 3.6 kJ/m^2 = 0.0036 MJ/m^2
@@ -34,6 +34,8 @@ plt.yticks(np.arange(0, 367, 50))
 plt.gca().invert_yaxis()
 plt.tight_layout()
 
+plt.savefig(os.path.join(project_path,'Data/Graphs',f'Average_Hourly_PAR.png'))
+
 # Create Daily Cumulative PAR plot
 daily_cumulative = par_data.sum(axis=1)
 
@@ -46,6 +48,8 @@ plt.grid(True)
 plt.xlim(1, len(par_data))
 plt.xticks(np.arange(0, 367, 50))
 plt.tight_layout()
+
+plt.savefig(os.path.join(project_path,'Data/Graphs',f'Average_Daily_PAR.png'))
 
 # Calculate and plot running total in MJ/m^2
 daily_sums = par_data.sum(axis=1)
@@ -60,5 +64,7 @@ plt.grid(True)
 plt.xlim(1, len(par_data))
 plt.xticks(np.arange(0, len(par_data)+1, 50))
 plt.tight_layout()
+
+plt.savefig(os.path.join(project_path,'Data/Graphs',f'Average_Annual_PAR.png'))
 
 plt.show()
