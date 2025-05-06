@@ -1,0 +1,93 @@
+{
+    "1979Early": {
+    "Seeding Date": "1978/9/22",
+      "Observed": {
+        "Seeding": 13,
+        "Emergence": 167,
+        "Double Ridge": 98,
+        "Anthesis": 55
+      },
+      "Paper": {
+        "Seeding": 12,
+        "Emergence": 172,
+        "Double Ridge": 90,
+        "Anthesis": 52
+      }
+    },
+    "1980Early": {
+      "Seeding Date": "1979/9/21",
+      "Observed": {
+        "Seeding": 6,
+        "Emergence": 155,
+        "Double Ridge": 104,
+        "Anthesis": 63
+      },
+      "Paper": {
+        "Seeding": 12,
+        "Emergence": 151,
+        "Double Ridge": 108,
+        "Anthesis": 60
+      }
+    },
+    "1981Early": {
+      "Seeding Date": "1980/9/16",
+      "Observed": {
+        "Seeding": 12,
+        "Emergence": 158,
+        "Double Ridge": 106,
+        "Anthesis": 54
+      },
+      "Paper": {
+        "Seeding": 10,
+        "Emergence": 160,
+        "Double Ridge": 103,
+        "Anthesis": 60
+      }
+    },
+    "1979Late": {
+      "Seeding Date": "1978/10/15",
+      "Observed": {
+        "Seeding": 14,
+        "Emergence": 164,
+        "Double Ridge": 82,
+        "Anthesis": 55
+      },
+      "Paper": {
+        "Seeding": 14,
+        "Emergence": 170,
+        "Double Ridge": 75,
+        "Anthesis": 49
+      }
+    },
+    "1980Late": {
+      "Seeding Date": "1979/10/21",
+      "Observed": {
+        "Seeding": 16,
+        "Emergence": 151,
+        "Double Ridge": 75,
+        "Anthesis": 62
+      },
+      "Paper": {
+        "Seeding": 19,
+        "Emergence": 149,
+        "Double Ridge": 80,
+        "Anthesis": 57
+      }
+    },
+    "1981Late": {
+      "Seeding Date": "1980/11/1",
+      "Observed": {
+        "Seeding": 24,
+        "Emergence": 138,
+        "Double Ridge": 78,
+        "Anthesis": 49
+      },
+      "Paper": {
+        "Seeding": 26,
+        "Emergence": 128,
+        "Double Ridge": 83,
+        "Anthesis": 54
+      }
+    }
+  }
+  

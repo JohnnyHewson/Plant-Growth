@@ -1,6 +1,3 @@
-#When printing the dry_matter dataframe, expect to see NA results, that is not an issue
-#I should have separated the tiller growth and the leaf growth initially, but alas, here we are
-
 from numpy import float64
 import pandas as pd
 import datetime
@@ -87,7 +84,6 @@ Results = pd.DataFrame(index = ['Top Weight, Anthesis (g/m^2)',
                                 'Grain Pool, Maturity (g/m^2)',
                                 'Root Weight, Anthesis (g/m^2)'])
 DataForGraphing = {}
-LAIGraphList = []
 
 #Calculates T_H for Thermal Time and Vernalized Degree Days Calculations
 def calc_T_H(T_max, T_min, r):
@@ -200,43 +196,14 @@ def calc_RoCoDLatE(latitude, declination):
     else:
         return (24 / pi) * (numerator / denominator) * declination_rate
 
-def plot_tillers(values, labels):
-    plt.figure(figsize=(8, 5))
-    
-    for i in range(len(labels)):  # 9 running lines
-        x_values = [x_value for x_value, _ in values]
-        y_values = [y_series.iloc[i] for _, y_series in values]
-        label_name = labels.iloc[i] if i < len(labels) else f'Position {i}'
-        plt.plot(x_values, y_values, marker='', linestyle='-', linewidth=2, label=label_name)
-    
-    plt.xlabel('Thermal Time')
-    plt.ylabel('Proportion of Cohort Surviving')
-    plt.title('Proportion of Cohort Surviving vs. Thermal Time')
-    plt.legend()
-    plt.grid(True)
-    plt.show()
-
-def plot_peakLAI(LAIGraphList):
-    fig, axs = plt.subplots(2, 3)
-    axs = axs.flatten()
-    for n,LAIGraph in enumerate(LAIGraphList):
-        axs[n].plot([x for x,_ in LAIGraph[1]],[y for _,y in LAIGraph[1]])
-        axs[n].set_xticks([0,90,180,270,360])
-        axs[n].set_yticks([0,2.5,5,7.5,10])
-        axs[n].set_title(f'Plant {LAIGraph[0]}')
-        axs[n].set_xlabel('Thermal Time')
-        axs[n].set_ylabel('Peak LAI')
-        axs[n].grid()
-
-    fig.suptitle("Peak LAI vs. Thermal Time", fontsize=16)
-    plt.tight_layout(rect=[0, 0, 1, 0.95])
-    plt.savefig(os.path.join(project_path,'Data/Graphs','peak_tillers.png'))
-    plt.show()
-
+#Load Plant seeding data
 seeding_dates = pd.read_csv(os.path.join(project_path, 'Data', 'Raw','Seedings Dates.csv'),index_col=0,header=0)
+
+#Loop over each plant and its seeding date
 for Plant_ID, date in seeding_dates.iterrows():
     plant_data = pd.DataFrame()
-    plant_data['Date'] = pd.date_range(start=date["Seeding Date"], end=datetime.datetime((datetime.datetime.strptime(date["Seeding Date"], "%Y-%m-%d").year + 1),8,31)) #Set date range from day of seeding to end of growing year
+    plant_data['Date'] = pd.date_range(start=datetime.datetime((datetime.datetime.strptime(date["Seeding Date"], "%Y-%m-%d").year),9,1),
+                                        end=datetime.datetime((datetime.datetime.strptime(date["Seeding Date"], "%Y-%m-%d").year + 1),8,31)) #Set date range from day of seeding to end of growing year
     plant_data = plant_data.merge(temp_data[(temp_data['Date'] >= plant_data['Date'].iloc[0]) &
                                             (temp_data['Date'] <= plant_data['Date'].iloc[-1])], on='Date', how='outer')
     plant_data = plant_data.dropna().reset_index().drop(columns='index')
@@ -276,24 +243,19 @@ for Plant_ID, date in seeding_dates.iterrows():
     new_tillers = 0
     new_leaves = 1
     leaf_growth_thermal_time = 0
-    max_tillers = 0
     week_day = 0
     number_of_cohorts = 0
     assimilatePool = 0
-    NnPeak = pd.Series()
-    peakLAI = 0
+    netAssimilate = 0
     mrc = None
     #Constants for Tiller Death Proportion
     A=825
     alpha = 1.46
     beta = 2.24
 
-    tillerData = []
-    tillerSurvival = []
-    LAIGraph = []
     
     #Loops over each day of plant's life from seeding to end of growing year
-    for index,row in plant_data.iterrows():
+    for index,row in plant_data.loc[plant_data['Date'] >= datetime.datetime.strptime(date["Seeding Date"], "%Y-%m-%d")].iterrows():
         julian_day = row['Date'].timetuple().tm_yday
         #Assign Stage
         row['Stage'] = stages[stage_number]['Stage']
@@ -322,18 +284,15 @@ for Plant_ID, date in seeding_dates.iterrows():
         # Step 4: Calculate Total Degree Days
         Total_Tt += row['Daily Degree Days']
         plant_data.loc[index, 'Total Degree Days'] = Total_Tt
-        if index > 0:
-            if plant_data.loc[index, 'Total Degree Days'] < plant_data.loc[index-1, 'Total Degree Days']:
-                raise #302
+        plant_data['Sum Unaffected Daily Thermal Time'] = plant_data['Daily Unaffected Thermal Time'].cumsum()
+
         row['Total Degree Days'] = plant_data.loc[index, 'Total Degree Days']
 
         #Calculating VDD as its cumulative starting from germination
         VDD = calc_VDD(row['Max Temp'], row['Min Temp'], VDD)
 
         #Starting stage based effects
-        if row['Stage'] == 'Seeding':
-            continue
-        elif row['Stage'] == 'Emergence':
+        if row['Stage'] == 'Emergence':
             leaf_growth_thermal_time += row['Daily Unaffected Thermal Time']
             #Rate of new leaves
             if rate_of_change_of_daylength_at_emergence == 0:
@@ -351,12 +310,8 @@ for Plant_ID, date in seeding_dates.iterrows():
             if dry_matter['Leaf Number'].values.max() >= 3:
                 week_day += 1
                 new_tillers += row['Daily Unaffected Thermal Time'] * TPr * 250
-                print(new_tillers)
                 dry_matter.loc[number_of_cohorts,['Cohort','#Tillers']] = [number_of_cohorts+1,new_tillers]
-                # if number_of_cohorts == 0:
-                #     dry_matter.loc[number_of_cohorts,'N_n'] = 0
-                # else:
-                #     dry_matter['N_n'] = dry_matter['#Tillers'].cumsum(skipna=True)
+
                 if week_day == 7:
                     number_of_cohorts += 1
                     week_day = 0
@@ -365,22 +320,15 @@ for Plant_ID, date in seeding_dates.iterrows():
             leaf_growth_thermal_time += row['Daily Unaffected Thermal Time']
 
             #Calculating the proportion surviving in each Cohort
-
-            # #adding 1600 tiller cohort for testing
-            # try:
-            #     dry_matter.loc[number_of_cohorts,['Cohort','#Tillers']]
-            # except:
-            #     dry_matter.loc[number_of_cohorts,['Cohort','#Tillers']] = [number_of_cohorts+1, 1600-dry_matter.loc[number_of_cohorts-1,'N_n']]
-            #     dry_matter.loc[number_of_cohorts,'N_n'] = 1600
             
             if peak_tillers.empty:
-                peak_tillers = dry_matter['#Tillers'].cumsum(skipna=True)
+                peak_tillers = dry_matter['#Tillers']
 
             for c in dry_matter['Cohort'].dropna():
                 if c == 1:
                     dry_matter.loc[c-1,'Proportion Surviving'] = 1
                 elif c > 1:
-                    dry_matter.loc[c-1,'Proportion Surviving'] = 1 / (1 + ((row['Stage Sum Degree Days']/400) / (A/dry_matter['#Tillers'].cumsum(skipna=True).loc[c-1])**alpha)**beta)
+                    dry_matter.loc[c-1,'Proportion Surviving'] = 1 / (1 + ((row['Stage Sum Degree Days']/400) / (A/dry_matter['#Tillers'].cumsum(skipna=True).loc[c-2])**alpha)**beta)
             
             dry_matter['#Tillers'] = peak_tillers.mul(dry_matter['Proportion Surviving'])
             #Grow Leaves
@@ -389,31 +337,31 @@ for Plant_ID, date in seeding_dates.iterrows():
                 dry_matter.loc[new_leaves-1,['Leaf Active Area','Stage','Rate of Leaf Growth']] = [0,'Grow',leaf_data.loc[new_leaves-1 if new_leaves-1 < 11 else 11,"Max Leaf Area"] * rate_of_leaf_appearance_per_degree_day/1.8] #Leaves above 12 have the same dimensions as leaf 12 (which has index 11)
                 new_leaves += 1
         #Leaf Growth: phyllochron interval is met -> new leaf grows -> hits max size (max size is based upon leaf number given in secondary paper) -> remains at max size for ~67% of senescence period -> decays to 0 area by the end of senescence period
-        if dry_matter['Rate of Leaf Growth'].values.max() != 0:
-            i=0
-            for area in dry_matter['Leaf Active Area']:
+        if dry_matter['Leaf Active Area'].values.max() != 0:
+            for i,area in enumerate(dry_matter['Leaf Active Area'].dropna()):
+                if dry_matter.loc[i,'Stage'] == 'Dead':
+                    continue
                 #Growth Stage
-                if dry_matter.loc[i,'Stage'] == 'Grow':
-                    if area == 0:
+                elif dry_matter.loc[i,'Stage'] == 'Grow':
+                    if area == 0 and row['Stage'] not in ['Anthesis','Maturity']:
                         dry_matter.loc[i,'Leaf Active Area'] = max(row['Daily Degree Days'],0) * dry_matter.loc[i,'Rate of Leaf Growth']
-                    else:
-                        if dry_matter.loc[i,'Leaf Active Area'] != leaf_data.loc[i if i < 11 else 11,'Max Leaf Area']:
-                            if dry_matter.loc[i,'Leaf Active Area'] + max(row['Daily Degree Days'],0) * dry_matter.loc[i,'Rate of Leaf Growth'] > leaf_data.loc[i if i < 11 else 11,'Max Leaf Area']:
-                                dry_matter.loc[i,'Leaf Active Area'] = leaf_data.loc[i if i < 11 else 11,'Max Leaf Area']
-                            else:
-                                dry_matter.loc[i,'Leaf Active Area'] += max(row['Daily Degree Days'],0) * dry_matter.loc[i,'Rate of Leaf Growth']
+                    elif dry_matter.loc[i,'Leaf Active Area'] != leaf_data.loc[i if i < 11 else 11,'Max Leaf Area'] and row['Stage'] not in ['Anthesis','Maturity']:
+                        if dry_matter.loc[i,'Leaf Active Area'] + max(row['Daily Degree Days'],0) * dry_matter.loc[i,'Rate of Leaf Growth'] > leaf_data.loc[i if i < 11 else 11,'Max Leaf Area']:
+                            dry_matter.loc[i,'Leaf Active Area'] = leaf_data.loc[i if i < 11 else 11,'Max Leaf Area']
                         else:
-                            dry_matter.loc[i,'Stage'] = 'Max Area'
-                            if i < 9:
-                                dry_matter.loc[i,'Life Span'] = 0.67 * (3.5 * phylochron_interval)
-                            elif i == 9:
-                                dry_matter.loc[i,'Life Span'] = 0.67 * (375)
-                            else:
-                                dry_matter.loc[i,'Life Span'] = 0.67 * (375 + (i-9) * 125)
-                            dry_matter.loc[i,'Rate of Leaf Growth'] = 0
+                            dry_matter.loc[i,'Leaf Active Area'] += max(row['Daily Degree Days'],0) * dry_matter.loc[i,'Rate of Leaf Growth']
+                    else:
+                        dry_matter.loc[i,'Stage'] = 'Max Area'
+                        if i < 9:
+                            dry_matter.loc[i,'Life Span'] = 0.67 * (3.5 * phylochron_interval)
+                        elif i == 9:
+                            dry_matter.loc[i,'Life Span'] = 0.67 * (375)
+                        else:
+                            dry_matter.loc[i,'Life Span'] = 0.67 * (375 + (i-9) * 125)
+                        dry_matter.loc[i,'Rate of Leaf Growth'] = 0
                 #Max Area Stage
                 elif dry_matter.loc[i,'Stage'] == 'Max Area':
-                    if (dry_matter.loc[i,'Life Span'] - max(row['Daily Degree Days'],0)) > 0:
+                    if (dry_matter.loc[i,'Life Span'] - max(row['Daily Degree Days'],0)) > 0 and row['Stage'] not in ['Anthesis','Maturity']:
                         dry_matter.loc[i,'Life Span'] -= max(row['Daily Degree Days'],0)
                     else:
                         dry_matter.loc[i,'Stage'] = 'Decay'
@@ -423,15 +371,14 @@ for Plant_ID, date in seeding_dates.iterrows():
                             dry_matter.loc[i,'Life Span'] = 0.33 * (375)
                         else:
                             dry_matter.loc[i,'Life Span'] = 0.33 * (375 + (i-9) * 125)
-                        dry_matter.loc[i,'Rate of Leaf Growth'] = (-1) * leaf_data.loc[i,'Max Leaf Area'] / dry_matter.loc[i,'Life Span']
+                        dry_matter.loc[i,'Rate of Leaf Growth'] = (-1) * leaf_data.loc[11,'Max Leaf Area'] / dry_matter.loc[i,'Life Span']
                 #Decay Stage
                 elif dry_matter.loc[i,'Stage'] == 'Decay':
-                    if (dry_matter.loc[i,'Life Span'] - max(row['Daily Degree Days'],0)) > 0:
+                    if (dry_matter.loc[i,'Life Span'] - max(row['Daily Degree Days'],0)) > 0 and dry_matter.loc[i,'Leaf Active Area'] > 0:
                         dry_matter.loc[i,'Life Span'] -= max(row['Daily Degree Days'],0)
                         dry_matter.loc[i,'Leaf Active Area'] += max(row['Daily Degree Days'],0) * dry_matter.loc[i,'Rate of Leaf Growth']
                     else:
                         dry_matter.loc[i,['Leaf Active Area','Stage','Rate of Leaf Growth','Life Span']] = [0,'Dead',0,0]
-                i+=1
         #Leaf Area Index
         if dry_matter['Leaf Number'].max() > 12: #Leaves 13 and above have identical dimensions to leaf 12
             leaf_data = pd.concat([leaf_data, pd.DataFrame([leaf_data.iloc[11]] * (dry_matter['Leaf Number'].max() - 12))], ignore_index=True)
@@ -542,8 +489,6 @@ for Plant_ID, date in seeding_dates.iterrows():
             else:
                 Assimilate_Distribution = Assimilate_Stage_Distribution.loc['DR Pre Grain']
         elif row['Stage'] == "Anthesis":
-            if Results.fillna(0).loc['No. Grains Per Ear',Plant_ID] == 0:
-                Results.loc['No. Grains Per Ear',Plant_ID] = ((weightDistribution.loc[index,'Ears'] / 10**-2) / (dry_matter.loc[dry_matter['#Tillers'].last_valid_index(),'#Tillers'])) #10**-2 to convert 10mg to g
             Assimilate_Distribution = Assimilate_Stage_Distribution.loc['Anthesis']
             if assimilatePool == 0: #Assimilate pool is created at the start of anthesis
                 assimilatePool = 0.3 * sum(weightDistribution["Stems and Leaves"].fillna(0).values)
@@ -553,8 +498,7 @@ for Plant_ID, date in seeding_dates.iterrows():
                 G_Max = ((0.045 * (row['Max Temp'] + row['Min Temp'])) / 2) + 0.4
                 weightDistribution.loc[index,'Grain'] = G_Max if netAssimilate + assimilatePool > G_Max else netAssimilate + assimilatePool
             elif row['Stage Sum Degree Days'] <= 350:
-                if netAssimilate < 0:
-                    weightDistribution.loc[index,'Grain'] = netAssimilate
+                weightDistribution.loc[index,'Grain'] = netAssimilate if netAssimilate < 0 else 0
 
                         ### Root Growth Submodel ###
         #This submodel acts as a assimilate sink so i chose not to properly code it as it is pointless to do so
@@ -575,28 +519,27 @@ for Plant_ID, date in seeding_dates.iterrows():
             lateralWeight = lateralSpecificWeight*lateralExtension
 
             root_weight = seminalWeight + lateralWeight
-            weightDistribution.loc[index,"Root"] = root_weight
+            weightDistribution.loc[index,"Roots"] = root_weight
 
         #Results Dataframe Collection
         if row['Stage'] == 'Anthesis':
             if weight > Results.loc['Top Weight, Anthesis (g/m^2)',Plant_ID]:
-                Results.loc['Top Weight, Anthesis (g/m^2)',Plant_ID] = weight
+                Results.loc['Top Weight, Anthesis (g/m^2)',Plant_ID] = float64(weight)
             if Results.loc['Grain Pool, Anthesis (g/m^2)',Plant_ID] == 0:
                 Results.loc['Grain Pool, Anthesis (g/m^2)',Plant_ID] = assimilatePool
-                Results.loc['Root Weight, Anthesis (g/m^2)'] = weightDistribution['Roots']
+                Results.loc['Root Weight, Anthesis (g/m^2)'] = sum(weightDistribution['Roots'].fillna(0))
         elif row['Stage'] == 'Maturity':
             if weight > Results.loc['Top Weight, Maturity (g/m^2)',Plant_ID]:
                 Results.loc['Top Weight, Maturity (g/m^2)',Plant_ID] = weight
             if Results.loc['Grain Pool, Maturity (g/m^2)',Plant_ID] == 0 and row['Stage Sum Degree Days'] > 55:
                 Results.loc['Grain Pool, Maturity (g/m^2)',Plant_ID] = assimilatePool
 
-        #Graphing
-        if LAI_z.empty is False:
-            LAIGraph.append((index,LAI_z['LAI'].values[-1]))
-
-        GraphDataDailyUpdate = {'Total Thermal Time':row['Total Degree Days'],
+        GraphDataDailyUpdate = {'Total Affected Thermal Time':row['Total Degree Days'],
+                                'Daily Affected Thermal Time':row['Daily Degree Days'],
+                                'Total Unaffected Thermal Time':plant_data['Daily Unaffected Thermal Time'].dropna().sum(),
+                                'Daily Unaffected Thermal Time':row['Daily Unaffected Thermal Time'],
                                 'Stage':row['Stage'],
-                                'Stage Sum Thermal Time':row['Stage Sum Degree Days'],
+                                'Stage Sum Affected Thermal Time':row['Stage Sum Degree Days'],
                                 'Proportion of cohort surviving':dry_matter['Proportion Surviving'].dropna().to_json(orient='records'),
                                 'Number of shoots per m^2':dry_matter['#Tillers'].dropna().to_json(orient='records'),
                                 'Shoot age':[
@@ -607,23 +550,16 @@ for Plant_ID, date in seeding_dates.iterrows():
                                 'LAI':(index,LAI_z['LAI'].values[-1]) if LAI_z.empty is False and LAI_z['LAI'].values[-1] > 0 else (index,0)}
         DataForGraphing[Plant_ID].update({index:GraphDataDailyUpdate})
 
-        # tillerData.append(dry_matter['N_n'].dropna().values[-1])
-        # if row['Stage'] == 'Double Ridge':
-        #     if NnPeak.empty:
-        #         NnPeak = dry_matter['N_n']
-        #     tillerSurvival.append((row['Stage Sum Degree Days'],dry_matter['Proportion Surviving'].dropna()))
-        
-        print("=====================")
-        print(row[['Date','Stage','Stage Sum Degree Days']])
-        print(dry_matter[['Cohort','#Tillers','Leaf Number','Leaf Active Area']])
-        print(LAI_z)
+    Results.loc['Grain Yield (g/m^2)',Plant_ID] = sum(weightDistribution['Grain'].fillna(0))
+    Results.loc['Harvest Index (%)',Plant_ID] = (sum(weightDistribution['Grain'].fillna(0)) / sum(sum(weightDistribution.fillna(0).values))) * 100
+    Results.loc['No. Grains Per Ear',Plant_ID] = ((sum(weightDistribution['Ears'].fillna(0)) / 10**-2) / (sum(dry_matter['#Tillers'].fillna(0)) / 250)) #10**-2 to convert 10mg to g
+    Results.loc['No. of Grain per m^2 (10^3)',Plant_ID] = Results.loc['No. Grains Per Ear',Plant_ID] * sum(dry_matter['#Tillers'].fillna(0)) * 10**-3
+    Results.loc['No. of Ears per m^2',Plant_ID] = sum(dry_matter['#Tillers'].fillna(0))
+    Results.loc['Grain Weight (mg/grain)',Plant_ID] = (sum(weightDistribution['Grain'].fillna(0)) * 10**3) / (Results.loc['No. of Grain per m^2 (10^3)',Plant_ID] * 10**3)
 
-    plant_data['Sum Unaffected Daily Thermal Time'] = plant_data['Daily Unaffected Thermal Time'].cumsum()
     plant_data[['Date','Stage','Total Degree Days','Sum Unaffected Daily Thermal Time']].to_csv(os.path.join(project_path,'Data','Processed','Thermal Time',f'{Plant_ID}.csv'),index=False)
-    #raise #just for testing without having to do all 6 plantings
-    #LAIGraphList.append((Plant_ID,LAIGraph))
-plot_peakLAI(LAIGraphList)
 with open(os.path.join(project_path,'Data/Processed','graph_data.json'), 'w') as file:
     json.dump(DataForGraphing, file)
 
-print(Results)
+Results[['1979Early','1979Late','1980Early','1980Late','1981Early','1981Late']].to_csv(os.path.join(project_path,'Data/Processed','Results.csv'),header=True, index=True)
+print(Results[['1979Early','1979Late','1980Early','1980Late','1981Early','1981Late']])

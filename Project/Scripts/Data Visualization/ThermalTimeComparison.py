@@ -2,6 +2,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import os
 import datetime
+from math import cos,pi
 
 # Load the Interpolated Thermal Time data from the paper
 project_path = os.path.abspath(os.path.join(os.path.dirname(__file__), r'../..'))
@@ -18,6 +19,42 @@ paper_thermal_data = paper_thermal_data.sort_values(by='Date')
 # Calculate day of growing season
 paper_thermal_data['Day_of_Growing_Season'] = paper_thermal_data.groupby('Growing Year').cumcount() + 1
 
+#Calculates Un/affected Thermal Time (Celcius)
+def calc_thermal_time(row):
+    T_min = max(row['Min Temp'],0)
+    T_max = max(row['Max Temp'],0)
+    T_opt = 26
+    TD_max = 37
+    T_base = 0
+
+    T_t = 0
+    for r in range(1, 9):
+        f_r = (1 / 2) * (1 + cos((90 / 8) * (2 * r - 1) * pi / 180))
+        T_H = max(T_min + f_r * (T_max - T_min), 0)  # Degree Celsius
+        if T_H < T_opt:
+            T_t += T_H - T_base
+        elif T_H == T_opt:
+            T_t += T_opt - T_base
+        elif T_opt < TD_max:
+            T_t += (T_opt - T_base) * (TD_max - T_H) / (TD_max - T_opt)
+        else:
+            T_t += 0
+    T_t = max((1 / 8) * T_t, 0)
+    print(T_t)
+    return T_t
+
+def growing_year(row):
+    return f'{row['Date'].year}-{row['Date'].year+1}' if row['Date'].month >= 9 else f'{row['Date'].year-1}-{row['Date'].year}'
+
+def dogs(row):
+    return row['Date'].timetuple().tm_yday
+
+thermal_data_path = os.path.join(project_path,'Data/Raw','Temperature 1978-1981.csv')
+thermal_data = pd.read_csv(thermal_data_path, header=0)
+thermal_data['Date'] = pd.to_datetime(thermal_data['Date'])
+thermal_data['Daily Thermal Time'] = thermal_data.apply(calc_thermal_time,axis=1)
+thermal_data['Growing Year'] = thermal_data.apply(growing_year,axis=1)
+thermal_data['Day_of_Growing_Season'] = thermal_data.groupby('Growing Year').cumcount() + 1
 
 Calculated_Tt_path = os.path.join(project_path,'Data','Processed','Thermal Time')
 unaffected_thermal_data = {}
@@ -50,38 +87,39 @@ stage_labels = {
     'Maturity': 'M'
 }
 
+
 # Create plot per growing year
 for year in paper_thermal_data['Growing Year'].unique():
     plt.figure(figsize=(12, 6))
+    # Plot paper data for this year
+    paper_group = paper_thermal_data[paper_thermal_data['Growing Year'] == year]
+    year_color = year_colors[int(year.split('-')[1])]
+    print(paper_group)
+    plt.plot(paper_group['Day_of_Growing_Season'], paper_group['Cumulative Thermal Time'],
+             label=f'Paper {year}', color=year_color)
     
     # Plot paper data for this year
-    group = paper_thermal_data[paper_thermal_data['Growing Year'] == year]
+    my_group = thermal_data[thermal_data['Growing Year'] == year]
+    print(my_group)
     year_color = year_colors[int(year.split('-')[1])]
-    plt.plot(group['Day_of_Growing_Season'], group['Cumulative Thermal Time'],
-             label=f'Paper {year} (Unaffected)', color=year_color)
-    
-    # Plot all relevant plant data for this year
-    for plant_ID in unaffected_thermal_data:
-        plant_data = unaffected_thermal_data[plant_ID]
-        if year in plant_data['Growing Year'].values:
-            group = plant_data[plant_data['Growing Year'] == year]
-            plant_year = int(plant_ID.removesuffix('Early' if 'Early' in plant_ID else 'Late'))
-            plant_color = year_colors.get(plant_year, 'gray')
-            plt.plot(group['Day_of_Growing_Season'], group['Sum Unaffected Daily Thermal Time'],
-                     linestyle=':', label=f'Unaffected {plant_ID}', color=plant_color)
+    plt.plot(my_group['Day_of_Growing_Season'], my_group['Daily Thermal Time'].cumsum(),
+             label=f'Calculated {year}', color=year_color, linestyle='--')
 
     # Finalize the plot
     plt.xticks(month_days, month_labels)
-    plt.xlabel('Month')
-    plt.ylabel('Cumulative Thermal Time')
-    plt.title(f'Cumulative Thermal Time - Growing Year {year}')
-    plt.legend()
+    plt.xlabel('Month', fontsize=14)
+    plt.yticks(range(0,4000,500))
+    plt.ylabel('Cumulative Thermal Time',fontsize=14)
+    plt.tick_params(axis='both',labelsize=12)
+    plt.title(f'Cumulative Thermal Time - Growing Year',fontsize=16)
+    plt.legend(fontsize=12)
     plt.grid(True)
     plt.tight_layout()
-    plt.savefig(os.path.join(project_path, 'Data/Graphs', f'ThermalTime_{year}.png'))
+    plt.savefig(os.path.join(project_path, 'Data/Graphs', f'ThermalTimeComp - {year}.png'))
     plt.show()
     plt.close()
 
+raise
 # Set up output directory for difference plots
 difference_plot_dir = os.path.join(project_path, 'Data/Graphs/DifferencePlots')
 os.makedirs(difference_plot_dir, exist_ok=True)
